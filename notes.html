@@ -1,0 +1,90 @@
+<html>
+<!-- ;;;-*- Mode: HTML; -*- -->    
+    <h3>Notes</h3>
+    
+    <h4> driver-connect </h4>
+    Using driver-connect one does not have to create an ODBC datasource for every 
+    database one wants to use. The necessary parameters for the driver manager/driver 
+    are supplied via connection string. 
+    Some connection strings examples for using driver-connect
+    <ul>
+      <li> using the excel driver "DRIVER={Microsoft Excel Driver (*.xls)};
+        DBQ=C:/TEMP/Book1.xls"
+      <li> using the access driver:
+        "Driver={Microsoft Access Driver (*.mdb)};DBQ=c:/temp/Copy of OMR TT Reports.mdb"
+      <li> using an Oracle Driver "DRIVER=Oracle in oracl92;UID=SCOTT;PWD=tiger;server=ltrav1"
+    </ul>
+    One way to get a connection string is to create a file dsn and have a look at its contants, note that userid and password are encrypted in this file,
+    
+    
+    <h4>Problems using the Jet driver on windows</h4>
+    It seems that the jet driver needs to have write access to the registry directory 
+    HKEY_LOCAL_MACHINE\SOFTWARE\ODBC,
+    see <a href=http://support.microsoft.com/default.aspx?scid=kb;EN-US;Q295297> 
+      PRB: Error Message: 0x80004005: General Error Unable to Open Registry Key
+    </a>.
+    In the mentioned document these steps are recommended
+    <ul>
+      <li>1. Start Registry Editor (Regedt32.exe). 
+      <li>2. Select the following key in the registry:
+        HKEY_LOCAL_MACHINE\SOFTWARE\ODBC  
+      <li>3. On the Security menu, click Permissions. 
+      <li>4. Type the required permissions for the account that is accessing the Web page. 
+      <li>5. Quit Registry Editor 
+    </ul>
+    <h4> driver-connect, another approach</h4>
+    It seems that windows creates a temporary dsn if you try to connect via driver 
+    connect and if use the key DRIVER=????.  If security is high on the computer this
+    will fail. Another option is to create for each kind of datasource a default 
+    datasource with the correct driver. 
+    
+    
+    <h4> performances </h4>
+    It seems that with clisp storing and retrieving C datatypes from memory take a lot time.
+    This should be possible without consing, maybe I have to change my clisp FFC module.
+    
+    <h4> access </h4>
+    For character parameters Access requires that the columnsize argument 
+    is set to a value smaller than 255. Oracle and sql server do not care.
+    It sems that the columns size parameter must depend on the driver.
+
+    <h4>lobs and oracle</h4>
+    There is a problem with stored procedures with lob parameters.
+    If the actual parameter is longer than 32513, then an error occurs:
+<pre>
+[Oracle][ODBC][Ora]ORA-01460: Nicht implementierte oder sinnlose Umwandlung gefordert
+, error code 1460, State: 37000.
+</pre>
+    When doing an insert,update there is no problem.
+    I have found he following in V$SQL:<br>
+    <tt>insert into test (id,text) values(23* :1,:2) RETURNING "TEXT" INTO :TEXT</tt>
+<br>
+
+    <h4>line end and oracle</h4>
+    Oracle has problems with ascii(13) (or ^M) in create procedure statements 
+    (I supect this is the holds for all PL/SQL statements). They are accpeted in SQL 
+    statements. It seems that CLISP replaces this character on Windows with chr(10). 
+    Allegro does not do this. Therefore some code that runs fine with CLISP
+    causes an error on with Allegro.
+<pre>
+
+[24]> (exec-command  *con* (concatenate 'string "create or replace procedure b99 (x integer) as begin null;" (string (code-char 32)) " end;"))
+
+NIL
+[25]> (exec-command  *con* (concatenate 'string "create or replace procedure b99 (x integer) as begin null;" (string (code-char 13)) " end;"))
+
+WARNING:
+[Oracle][ODBC][Ora]Trigger, procedure or function created with PL/SQL compilation error(s)., error code 24344, State: S1000.
+NIL
+[26]> (exec-command  *con* (concatenate 'string "create or replace procedure b99 (x integer) as begin null;" (string (code-char 10)) " end;"))
+
+NIL
+[27]> (exec-query *con* (concatenate 'string "select " (string (code-char 13)) " * from dual"))
+
+(("X")) ;
+("DUMMY")
+
+
+</pre>
+     
+</html>

@@ -1,0 +1,304 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+  <head>
+    <title>plain-odbc documentation</title>
+  </head>
+
+  <body>
+    <h1>plain-odbc documentation</h1>
+    <h2> Preface</h2>
+    This is the version of plain-odbc which I am using right now. 
+    The API could stand some improvements, currently it is rather 
+    simple. Hopefully it suffices for many uses. I thought I make 
+    the current version available before I make my mind up about 
+    another API. 
+    <h2> Using plain-odbc </h2>
+    You must load plain-odbc into lisp. plain-odbc is an asdf module, 
+    so you need asdf.
+    <pre>(asdf:oos 'asdf:load-op :plain-odbc)
+    </pre>
+    Then you have to create a connection to a database. The simplest way is 
+    to use the function <code>connect</code>.
+    <code>connect</code> takes 3 arguments,
+    <ul>
+      <li>the DSN of the datasource
+      <li>the userid 
+      <li>the password for the userid
+    </ul>
+    Example, <tt>ltrav</tt> is a DSN for an oracle database, 
+    with the well known scott schema:
+    <pre>
+[35]> (setf *con* (plain-odbc:connect "ltrav1" "scott" "tiger"))
+#&lt;ODBC-CONNECTION SERVER="LTRAV1" DBMS="Oracle" USER="scott">
+</pre>
+Then we create a table, for this we use the command <code>exec-command</code>.
+<pre>
+[41]> (plain-odbc:exec-command *con* "create table test1(x integer,y varchar2(2000))")
+
+NIL
+</pre>
+Next we populate this table with data:
+<pre>
+[44]> (plain-odbc:exec-update *con* "insert into test1(x,y) values(1,'text1')")
+
+1
+</pre>
+and the we retrieve it with
+<pre>
+[45]> (plain-odbc:exec-query *con* "select * from test1")
+
+((1.0d0 "text1")) ;
+("X" "Y")
+</pre>
+Note that the column x is retrieved as double, this is a problem with Oracle. Oracle does not really have integer columns, integer is just a short hand for number(37,0), and in a query this is returned as decimal. And plain-odbc converts decimals to doubles.
+<pre>
+[46]> (plain-odbc:exec-update *con* "update test1 set y='test1.1' where x=1") 
+
+1
+</pre>
+    There is no autocommit mode, every transaction has to commited explicitly. 
+    <strong><em>If a connection is closed, it is rolled back.</em> </strong>
+    So we have to commit the changes now:
+    <pre>
+[47]> (plain-odbc:commit *con*)
+
+0
+    </pre>
+    And at last we close the connection
+    <pre>
+[48]> (plain-odbc:close-connection *con*)
+    </pre>
+    Any further opertaions with the connection will fail. It is not possible
+    to reconnect the connection.
+    For Oracle, SQL-Server and MS-Access there are special 
+    functions to connect to a database without creating a DSN first. 
+    Currently this works only under windows.
+<pre>
+[90]> (setf *con* (connect-oracle "ltrav1" "scott" "tiger"))
+
+#&lt;ODBC-CONNECTION SERVER="ltrav1" DBMS="Oracle" USER="scott">
+[91]> (exec-command *con* "create table test(id integer,text clob)")
+
+NIL
+[92]> (exec-update *con* "insert into test (id,text) values(1,'text1')")
+
+1
+[93]> (exec-query *con* "select * from test")
+
+((1.0d0 "text1")) ;
+("ID" "TEXT")
+[94]> (setf stm (prepare-statement *con* "insert into test (id,text) values(?,?)" '((:integer :in) (:clob :in))))
+
+#&lt;PLAIN-ODBC::ODBC-QUERY #x19ED9D09>
+[95]> (exec-prepared-update stm (list 2 "text2"))
+
+1
+
+[96]> (exec-prepared-update stm (list 3 (make-string 1000000 :initial-element #\a)))
+
+1
+[97]> (commit *con*)
+
+0
+
+[98]> (length (caar (exec-query *con* "select text from test where id = 3")))
+
+1000000
+</pre>
+ 
+
+
+    <h2>Classes</h2>
+
+    <ul>
+      <li><tt>odbc-connection</tt> - this is an object which represents a connection
+        to a database.
+        It can only be created by connecting to a database.
+      <li><tt>query</tt> - this is a prepared query object. It can be created with
+        <tt>prepare-statement</tt>. Prepared queries can be executed with the 
+        <tt>exec-prepared...</tt> functions.
+    </ul>
+    <h2>Functions / Methods</h2>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>connect <i> dsn user password</i> </tt><br>
+      <tt>connect</tt> connects to an odbc datasource <i>dsn</i> 
+      is the dsn of the datasource, <i>user</i> the user and 
+      <i>password</i> the password. The return value is an 
+      <tt>odbc-connection</tt>.
+    </p>
+    <P>
+      <br><b>[Function]</b><br>
+      <tt>close-connection <i>connection</i> </tt><br>
+      Close the odbc connection <i>connection</i>, any pending transaction 
+      is rolled back. After a connection is closed, it can not be used again.
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>connect-generic &rest <i>args</i></tt><br>
+      The function <tt>connect-generic</tt> expects that the 
+      rest parameter is alternating list of keywords and strings. 
+      From this list a connection string is build and used to connect 
+      to a datasource. Each pair of keyword and string becomes an 
+      attribute in the connection string, example:
+      <tt>(connect-generic :dsn "ltrav1" :uid "scott" :pwd "tiger")</tt> 
+      will create the connection string 
+      <tt>"dsn=ltrav1;uid=scott;pwd=tiger"</tt> and use this connection 
+      string to connect with the function 
+      <tt>SQLDriverConnect</tt> of the ODBC-API.
+      <em> Maybe this function should be called <tt>driver-connect</tt></em>? 
+    </p>
+    <p>
+      The following functions create connections to specific kinds of databases.
+      These functions need a template odbc datasource to the specific kind of
+      database which is usually called 
+      <tt>default-<em>databasetype</em>-dsn</tt>. This default dsn determines 
+      then the used driver and some further properties. 
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>connect-sql-server <i>server database</i> &optional <i>user password</i></tt><br>
+      Connect to sql server named <i>server</i>, the initial database is <i>database</i>. 
+      If <i>user</i> and <i>password</i> are supplied the connection is made with sql server 
+      authentication, if the parameters are not supplied then the connection is made with
+      integrated security. The name of the template odbc datasource for this function is <tt>default-sql-server-dsn</tt>.
+    </p>
+
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>connect-oracle <i>server user password</i></tt><br>
+      Connect to oracle database <i>server</i>, connecting as <i>user</i> with 
+      password <i>password</i>. The name of the template odbc datasource for this function is <tt>default-oracle-dsn</tt>.
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>connect-access <i>filename</i></tt><br>
+      Connect to the access database (a .mdb file) with name filename.
+      The name of the template odbc datasource for this function is 
+      <tt>default-access-dsn</tt>.
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>exec-query <i>connection sqlstring</i></tt><br>
+      Executes a query on <i>connection</i> and returns two values:<br>
+      the result set as a list of lists, i.e. a row is a list and the 
+      result set is a list of rows. <br>
+      The second value is a list of the column names.
+      <br><b>Note:</b>
+      Note: If a column is a LOB (BLOB or CLOB) then the data is retrieved
+      with the ODBC function SQLGetData. This has the consequence that 
+      thr following columns must also be retrieved with SQLGetData, 
+      otherwise an error is raised by the driver. 
+      Retrieving the following columns via 
+      SQLGetData is not done automatically. Therefore if a LOB is selected
+      it should be the last column.
+      <br><b>Note:</b>
+      The result set data is turned into lisp data automatically.
+      The odbc datatypes SQL_NUMERIC and SQL_DECIMAL are retrieved as doubles. 
+      If you need the full precision and decimal rounding of the datatypes, 
+      you should convert them to string in the select statement. But be carefull with
+      the conversion format is used (1.23 vs. 1,23).
+
+
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>exec-update <i>connection sqlstring</i></tt><br>
+      Execute an update on <i>connection</i> with sql <i> sqlstring</i> 
+      and returns the number of affected records. 
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>exec-command <i>connection sqlstring</i></tt></br>
+      Execute an command on <i>connection</i> with sql <i>sqlstring</i>.
+      Returns <tt>nil</tt>.
+    </p>
+    <p>
+      <br><b>NOTE</b><br>
+      The main difference between <tt>exec-update</tt> and <tt>exec-query</tt> 
+      is that <tt>exec-query</tt> returns the result set of the execution and
+      <tt>exec-update</tt> returns the number of affected records of this
+      dml statement. <tt>exec-command</tt> returns just <tt>nil</tt>.
+      For prepared statements this is different, <tt>exec-prepared-command</tt>
+      returns the in/out and out parameters.
+    </p>
+    <P>
+      <br><b>[Function]</b><br>
+      <tt>commit <i>connection</i></tt><br>
+      Commit a pending transaction for connection <i>connection</i>.
+    </p>
+    <P>
+      <br><b>[Function]</b><br>
+      <tt>rollback <i>connection</i></tt><br>
+      Roll back a pending transaction for connection <i>connection</i>.
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>prepare-statement <i>connection statement parameters</i></tt></br>
+      Creates a prepared statement for connection <i>connection</i> and statment 
+      <i>statement</i>. The parameter <i>parameters</i> is a list of the parameter
+      descriptions. A parameter description is a list 
+      <tt>(parametertype direction further-args ...)</tt>. 
+      <tt>parametertype</tt> determines the type of parameter and is one of 
+    <ul>
+      <li><tt>:string</tt> a string, not very long
+      <li><tt>:integer</tt>
+      <li><tt>:double</tt>
+      <li><tt>:datetime</tt> a point in time 
+      <li><tt>:binary</tt> an array of (unsigned-byte 8)
+      <li><tt>:clob</tt>  a string, can be very large
+      <li><tt>:blob</tt> an array of (unsigned-byte 8), can be very large
+    </ul> 
+      Direction determines if the parameter is a <tt>in</tt> , <tt>out</tt> or 
+      <tt>in/out</tt> parameter. The possible values are <tt>:in</tt>, <tt>:out</tt> or
+      <tt>:inout</tt>. The rest of the list are parameters for individual configuration
+      of the parameter. Currently this is only used for the string and binary 
+    parameters where one 
+      can supply the maximum length of the parameter.<br>
+    Example:
+    <pre>
+[16]> (setf *stm* (prepare-statement *con* 
+        "insert into emp (empno,deptno,ename,job,sal) values(?,?,?,?,?)"  
+       '((:integer :in) (:integer :in) (:string :in 200) (:string :in 20) 
+         (:double :in))))
+
+#&lt;PLAIN-ODBC::ODBC-QUERY #x19ED07C5>
+[17]> (exec-prepared-update *stm* (list 7999 20 "SMITH" "BOSS" 2335.96d0))
+
+1
+</pre>
+    The parameter types <tt>:blob</tt> and <tt>:clob</tt> can not be used as out 
+    and inout parameters. But one can select columns with datatype clob and 
+    blob (the name of the type depends on the database).
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>free-statement <i>statement</i></tt><br>
+      Frees the prepared statement <i>statement</i>, after that it can not be used again.
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>exec-prepared-query <i>query list-of-parameters</i></tt><br>
+      Executes a previoulsy prepared statement <i>query</i> using the parameters in
+      <i>list-of-parameters</i>. The return value is the same as for exec-query, a
+      list of records in the resultset and as second value the names of the columns.
+      The meta data of the result set is internally cached. If the meta data of the 
+      result set changes with the invocations yo must use a new prepared statement.
+      This should not happen often, but it is possible.
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>exec-prepared-update <i>query list-of-parameters</i></tt><br>
+      Executes an update with the previoulsy created prepared statement <i>query</i> 
+      using the parameters in <i>list-of-parameters</i>. The return value is the number 
+      of affected records.
+    </p>
+    <p>
+      <br><b>[Function]</b><br>
+      <tt>exec-prepared-command <i>query list-of-parameters</i></tt><br>
+      Executes a command (stored procedure) with previously prepared statement 
+      <i>query</i>. For each in or in/out parameter there must be a value in the list list-of-parameters. The return value is the list values for  the out and in/out 
+      parameters.
+    </p>
+  </body>
+</html>
