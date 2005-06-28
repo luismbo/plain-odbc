@@ -10,16 +10,19 @@ test-sql-server.lisp
 test-mysql.lisp
 
 A file contains tests for the database.
-Each file has its own package, named according to the database/file,
-i.e. "TEST-ORACLE", "TEST-SQL-SERVER", "TEST-MYSQL".
 
-The tests are started with the function run-all-tests, which takes
-as a parameter a odbc connection, for example:
+All these files are loaded by the file test-main.lisp.
+This file contains also some utility procedures needed by the other files.
+
+
+The tests are started with the function run-mysql-tests,run-oracle-tests
+run-sql-server-tests. These function take one parameter, an
+odbc connection to thecorresponding database.
 
 [44]> (setf *con* (connect-oracle "ltrav1" "scott" "tiger"))
 
 #<ODBC-CONNECTION SERVER="ltrav1" DBMS="Oracle" USER="scott">
-[45]>  (test-oracle:run-all-tests *con*)
+[45]>  (test-plain-odbc:run-oracle-tests *con*)
 
 NIL
 

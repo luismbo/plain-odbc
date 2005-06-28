@@ -598,6 +598,58 @@
 (defun enable-autocommit (hdbc)
   (set-connection-option hdbc $SQL_AUTOCOMMIT $SQL_AUTOCOMMIT_ON))
 
+
+***
+;;; rav, 11.6.2005
+;;; added tracing support
+
+(defun set-connection-attr-integer (hdbc option val)
+  (with-error-handling (:hdbc hdbc)
+    (SQLSetConnectAttr_long hdbc option val 0)))
+
+(defun set-connection-attr-string (hdbc option val)
+  (with-error-handling (:hdbc hdbc)
+    (with-cstr (ptr val)
+      (SQLSetConnectAttr_string hdbc option ptr (length val)))))
+
+(defun %start-connection-trace (hdbc filename)
+  (set-connection-attr-string hdbc  $SQL_ATTR_TRACEFILE	filename)
+  (set-connection-attr-integer hdbc $SQL_ATTR_TRACE	$SQL_OPT_TRACE_ON))
+
+(defun %stop-connection-trace (hdbc)
+  (set-connection-attr-integer hdbc $SQL_ATTR_TRACE	$SQL_OPT_TRACE_OFF))
+  
+
+(defun get-connection-attr-integer (hdbc attr)
+  (%with-temporary-allocation ((ptr :long) (lenptr :long))
+    (with-error-handling (:hdbc hdbc)
+      (SQLGetConnectAttr hdbc attr ptr 0 lenptr))
+    (%get-long ptr)))
+
+(defun get-connection-attr-string (hdbc attr)
+  (%with-temporary-allocation ((ptr :string 256) (lenptr :long))
+    (with-error-handling (:hdbc hdbc)
+      (SQLGetConnectAttr hdbc attr ptr 256 lenptr))
+    (%get-string ptr (%get-long lenptr))))
+
+;;; small test for the get-connection-attr
+(defun %get-current-catalog (hdbc)
+  (get-connection-attr-string hdbc $SQL_ATTR_CURRENT_CATALOG))
+
+(defun %set-current-catalog (hdbc catalog)
+  (set-connection-attr-string hdbc $SQL_ATTR_CURRENT_CATALOG catalog))
+
+
+
+(defun %connection-ok-p (hdbc)
+  (with-error-handling (:hdbc hdbc)
+    (ecase (get-connection-attr-integer hdbc $SQL_ATTR_CONNECTION_DEAD)
+      (#.$sql_cd_true nil)
+      (#.$sql_cd_false t))))
+
+;;;
+
+
 (defun %sql-set-pos (hstmt row option lock)
   (with-error-handling 
     (:hstmt hstmt)

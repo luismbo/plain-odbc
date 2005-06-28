@@ -37,11 +37,13 @@
   (let ((class-name
           (ecase lisp-type 
             (:string 'string-parameter)
+            (:unicode-string 'unicode-string-parameter)
             (:integer 'integer-parameter)
             (:date 'date-parameter)
             (:binary 'binary-parameter)
             (:double 'double-parameter)
             (:clob 'clob-parameter)
+            (:unicode-clob 'uclob-parameter)
             (:blob 'blob-parameter))))
     (let ((param (make-instance class-name 
                                 :direction direction 
@@ -121,6 +123,39 @@
       (progn
         (%get-string (slot-value param 'value-ptr) len)))))
 
+;;------------------------
+;; unicode-string parameter
+;;------------------------
+(defclass unicode-string-parameter (direct-parameter)
+  ())
+
+(defmethod initialize-parameter ((param unicode-string-parameter) args)
+  (let ((length-of-buffer (* 2 (or (car args) *default-string-parameter-size*))))
+    (with-slots (value-type parameter-type buffer-length 
+                            column-size value-ptr
+                            ind-ptr) param
+      (setf value-type $SQL_C_WCHAR)
+      (setf parameter-type $SQL_WVARCHAR)
+      (setf column-size length-of-buffer)
+      (setf buffer-length length-of-buffer))))
+
+(defmethod set-parameter-value ((param unicode-string-parameter) value)
+  (cond
+    ((null value)
+      (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA)
+      ;; not necessary
+      (%put-unicode-string (slot-value param 'value-ptr) ""))
+    (t 
+      (%put-unicode-string (slot-value param 'value-ptr) value)
+      (%put-long (slot-value param 'ind-ptr) (* 2 (length  value))))))
+
+(defmethod get-parameter-value ((param unicode-string-parameter))
+  (let ((len (%get-long (slot-value param 'ind-ptr))))
+    (if (= len $SQL_NULL_DATA)
+      nil
+      (progn
+        (%get-unicode-string (slot-value param 'value-ptr) len))))) 
+
 ;;----------------------
 ;; integer parameter
 ;;----------------------
@@ -170,7 +205,8 @@
    (cond  
      ((null value)
        (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA))
-     (t (%put-double-float (slot-value param 'value-ptr) value)
+     (t (%put-double-float (slot-value param 'value-ptr) 
+                           (coerce value 'double-float))
        (%put-long (slot-value param 'ind-ptr) 8))))
 
 (defmethod get-parameter-value ((param double-parameter))
@@ -295,6 +331,51 @@
                     (subseq temp-val pos (+ pos len))
                     len)
           (let ((res (%sql-put-data hstmt buffer len)))
+            (declare (ignore res))
+            (setf pos (+ pos len))
+            (if (>= pos value-len)
+              (return)))))
+      (%dispose-ptr buffer)
+      )))
+
+;;;--------------------
+;;; uclob parameter
+;;;--------------------
+
+(defclass uclob-parameter (lob-parameter) ())
+
+
+(defmethod initialize-parameter ((param uclob-parameter) args)
+  (declare (ignore args))
+  (with-slots (value-type parameter-type buffer-length value-ptr
+                          ind-ptr) param
+    (setf value-type $SQL_C_WCHAR)
+    (setf parameter-type $SQL_WLONGVARCHAR)
+    ;; the value-ptr will be needed to find the parameter,  
+    ;; we store the position there
+    (setf buffer-length 4)))
+
+(defmethod set-parameter-value ((param uclob-parameter) value)
+  (if (null value)
+    (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA)
+    (progn
+      (setf (slot-value param 'temp-val) value)
+      (%put-long (slot-value param 'value-ptr) (slot-value param 'position))
+      (%put-long (slot-value param 'ind-ptr)
+                 (%sql-len-data-at-exec (* 2 (length value)))))))
+
+(defmethod send-parameter-data ((param uclob-parameter) hstmt)
+  (let* ((temp-val (slot-value param 'temp-val))
+         (value-len (length temp-val))
+         (buffer-length-in-chars (min (truncate *lob-fetch-buffer-size* 2) value-len))
+         (buffer (%new-ptr :ptr (* 2 (+ buffer-length-in-chars 1)))))
+    (let ((pos 0))
+      (loop
+        (let ((len (min (- value-len pos) buffer-length-in-chars)))
+          (%put-unicode-string buffer 
+                    (subseq temp-val pos (+ pos len)))
+          (let ((res (%sql-put-data hstmt buffer (* 2 len))))
+            
             (declare (ignore res))
             (setf pos (+ pos len))
             (if (>= pos value-len)

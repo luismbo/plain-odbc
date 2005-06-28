@@ -59,6 +59,50 @@
  (use-package :ff)
  (require :foreign))
 
+;string-to-octets
+;Arguments: string &key (null-terminate t) (start 0) (end (length string)) mb-vector make-mb-vector? (external-format :default)
+;octets-to-string
+;Arguments: octet-vector &key string (start 0) (end (or (position 0 octet-vector :start start) (length octet-vector))) make-string? (external-format :default) truncate (string-start 0) string-end
+
+
+;; fixme, this could be better
+#+ignore
+(defun string-to-wchar-bytes (string)
+  (let ((bytevec (excl:string-to-octets string :null-terminate nil 
+                                        :make-mb-vector? t 
+                                        :external-format :unicode)))
+    (cond 
+      ((= (length bytevec) (* 2 (length string)))
+        bytevec)
+      ((= (length bytevec) (+ 2 (* 2 (length string))))
+        (subseq bytevec 2 (length bytevec)))
+      (t (error "the byte vector has a strange length")))))
+
+
+;;; string-to-octects adds a unicode marker, and the external-type fat 
+;;; has the wrong endian version 
+(defun string-to-wchar-bytes (string)
+  (let ((vec (make-array (* 2 (length string)) :element-type '(unsigned-byte 8))))
+    (dotimes (i (length string))
+      (let ((k (char-code (char string i))))
+        (setf (aref vec (* 2 i)) (logand k 255)
+              (aref vec (1+ (* 2 i))) (ash k -8))))
+    vec))
+
+        
+(defun wchar-bytes-to-string (byte-vector)
+  (excl:octets-to-string byte-vector  :make-string? t
+                     :external-format :unicode
+                     :truncate t))
+
+(defun %get-unicode-string (ptr len)
+  (wchar-bytes-to-string (%get-binary ptr len)))
+
+
+(defun %put-unicode-string (ptr string)
+  (%put-binary ptr (string-to-wchar-bytes string)))
+
+
 (defun %get-cstring-length (ptr)
    (foreign-strlen ptr))
 
@@ -232,6 +276,7 @@
                    (fli:dereference ptr :index pos)))
     str))
 
+
 (defmacro %put-str (ptr string &optional max-length)
   (declare (ignore max-length))
   `(string-to-char* ,string ,ptr))
@@ -288,6 +333,11 @@
            (length vector) max-length))
   (dotimes (i (length vector))
     (setf (sys:memref-int ptr 0 i :unsigned-byte) (aref vector i))))
+
+
+;;; len is byte length!!
+(defun %get-unicode-string (ptr len)
+  (wchar-bytes-to-string (%get-binary ptr len)))
 
 
 

@@ -84,7 +84,51 @@ NIL
 (("X")) ;
 ("DUMMY")
 
-
 </pre>
-     
+
+<h4>MYODBC and unicode</h4>
+MYODBC (3.51?) does not return unicode character data as datatype SQL_WVARCHAR. If for SQL_VARCHAR data the return datatype is set to SQLWCHAR, the length in the indicator is 0. It seems that the buffer is also empty (= #x000000000 ...). There is some talk about better support for unicode in another version (3.52?).
+
+<h4>Oracle 9.2 and unicode</h4>
+<p>
+I can not make Oracle return unicode. I am using a 9.2 DB I have created a nchar column which is a unicode datatype for 9.2.
+<p>
+I am using the oracle driver. There is a workaround tab where one can force the driver to 
+return string data as SQL_WCHAR.
+Storing unicode strings with parameters of type :unicode-string inserts some dummy character (a '?' standing on its head). Selecting nchr(1000) returns the same charcater.<br>
+Only selecting from  NLS_SESSION_PARAMETERS returns a 16bit charcater.
+Or do I have this problem since NLS_CHARACTERSET=WE8ISO8859P15?
+
+<h4>Microsoft ODBC driver for Oracle</h4>
+Currently it does not work on my computer. I get the error message:
+<pre>*** - [Microsoft][ODBC driver for Oracle][Oracle], error code 0, State: NA000.
+</pre>
+Visual Studio 6.0 has the same problem. Is 9.2 supported by Microsoft ODBC-Driver?
+
+<h4>Oracle and ref cursors</h4>
+This is easy with the oracle odbc driver and an 9.2 database.
+Example:
+<pre>
+create or replace package test99_pkg as        
+  type refcursor is ref cursor;       
+  procedure test_cursor(v varchar2,c in out refcursor);      
+end;
+
+create or replace package body test99_pkg as       
+  procedure test_cursor(v varchar2,c in out refcursor) is
+  begin         
+    open c for select v as a,'1234567890' as b from dual; 
+  end;      
+end;
+</pre>
+
+The cursor can be retrieved with following lisp code:
+<pre>
+(with-prepared-statement (stm con 
+                                "{call test99_pkg.test_cursor(?,?)}" 
+                                '((:string :in )))
+    (let ((str "just a string"))
+      (exec-prepared-query stm (list str))))
+</pre>
+Note that the cursor parameter must be declared in/out. If a parameter ist supplied for the cursor parameter, it still works. <em>This needs more investigations.</em>
 </html>

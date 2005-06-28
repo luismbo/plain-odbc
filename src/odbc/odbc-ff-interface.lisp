@@ -252,6 +252,48 @@
      )
     :signed-short)              ; RETCODE_SQL_API
 
+;;; rav, 11.6.2005
+;   SQLRETURN SQLSetConnectAttr(
+;   SQLHDBC     ConnectionHandle,
+;   SQLINTEGER     Attribute,
+;   SQLPOINTER     ValuePtr,
+;   SQLINTEGER     StringLength);
+;  ValuePtr 
+; [Input]
+; Pointer to the value to be associated with Attribute. Depending on the value of 
+; Attribute, ValuePtr will be a 32-bit unsigned integer value or will point to a 
+; null-terminated character string. Note that if the Attribute argument is a 
+; driver-specific value, the value in ValuePtr may be a signed integer. 
+
+(define-foreign-function "SQLSetConnectAttr"
+    ((hdbc sql-handle)          ; HDBC        hdbc
+     (fOption :short)           ; UWORD       fOption
+     (pvParam :long)             ; UDWORD      vParam
+     (stringlength :long)
+     )
+
+  :signed-short              ; RETCODE_SQL_API
+  :lisp-name SQLSetConnectAttr_long)
+
+(define-foreign-function "SQLSetConnectAttr"
+    ((hdbc sql-handle)          ; HDBC        hdbc
+     (fOption :short)           ; UWORD       fOption
+     (pvParam string-ptr)             ; UDWORD      vParam
+     (stringlength :long)
+     )
+  :signed-short              ; RETCODE_SQL_API
+  :lisp-name SQLSetConnectAttr_string)
+
+(define-foreign-function "SQLGetConnectAttr"
+    ((HDBC sql-handle)
+     (attr :long)
+     (valptr :ptr)
+     (buffer-length :long)
+     (string-length :ptr))
+  :signed-short)
+
+  
+
   (define-foreign-function "SQLSetPos"
     ((hstmt sql-handle)         ; HSTMT       hstmt
      (irow :short)              ; UWORD       irow

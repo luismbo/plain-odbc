@@ -31,7 +31,10 @@
   (ffc::peek where (list 'ffi:c-array 'ffi:uint8 size)))
 
 (defun malloc (size)
-  (ffi:foreign-address (ffi:allocate-shallow 'ffi:uint8 :count size)))
+  (ffi:foreign-address 
+   (ffi:allocate-shallow 'ffi:uint8 
+                         ;; clisp complains if size is 0
+                         :count (if (zerop size) 1 size))))
 
 
 (defun poke-bytes (where a)
@@ -43,6 +46,34 @@
 
 (defun string->vector (v)
   (map 'vector #'char-code v))
+
+;;; rav, 2005-6-12
+
+;(EXT:CONVERT-STRING-FROM-BYTES byte-vector encoding &KEY :START :END)
+;converts the subsequence of byte-vector from start to end to a STRING, according to the given encoding, and returns the resulting string.
+
+;(EXT:CONVERT-STRING-TO-BYTES string encoding &KEY :START :END)
+;converts the subsequence of string from start to end to a (VECTOR (UNSIGNED-BYTE 8)), according to the given encoding, and returns the resulting byte vector.
+
+
+(defun string-to-wchar-bytes (string)
+  (EXT:CONVERT-STRING-TO-BYTES string charset:UNICODE-16-LITTLE-ENDIAN))
+
+#-ignore
+(defun wchar-bytes-to-string (byte-vector)
+  (EXT:CONVERT-STRING-FROM-BYTES byte-vector charset:UNICODE-16-LITTLE-ENDIAN))
+
+;; fixme, this is awork around for a bug in clisp conversions of strings of different char with
+;; really
+#+ignore
+(defun wchar-bytes-to-string (byte-vector)
+  (let ((res (make-string (truncate (length byte-vector) 2) :initial-element (code-char 1000))))
+    (dotimes (i (truncate (length byte-vector) 2) res)
+      (setf (char res i)
+              (code-char (+ (aref byte-vector (* 2 i)) (* (aref byte-vector (+ (* 2 i) 1)) 256)))))))
+
+
+
 
 (defun string-to-char* (str &optional ptr)
   (let ((ptr (or ptr (malloc (1+ (length str))))))
@@ -117,11 +148,20 @@
 (defun %get-binary (ptr len)
   (peek-bytes ptr len))
 
+
+(defun %get-unicode-string (ptr len)
+  (wchar-bytes-to-string (%get-binary ptr len)))
+
 (defun %put-binary (ptr vector &optional max-length)
   (when (and max-length (> (length vector) max-length))
     (error "vector of length ~d is longer than max-length: ~d"
            (length vector) max-length))
-  (ffc::poke ptr (list 'ffi:c-array 'ffi:uint8 (length vector)) vector))
+  (ffc::poke ptr (list 'ffi:c-array 'ffi:uint8 (length vector)) vector)
+  nil)
+
+(defun %put-unicode-string (ptr string)
+  (%put-binary ptr (string-to-wchar-bytes string)))
+
 
 (eval-when (:compile-toplevel :load-toplevel :execute) 
   (defmacro %with-sql-pointer ((pointer-var) &body body)
@@ -244,11 +284,11 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defmacro define-foreign-function (c-name args result-type 
-                                            &key documentation module)
+                                            &key lisp-name documentation module)
     
     (declare (ignorable documentation module))
-    (let* ((lisp-name (intern (string-upcase c-name)))
-	   (type-list
+    (let* ((lisp-name (or lisp-name (intern (string-upcase c-name))))
+           (type-list
              (mapcar (lambda (var+type)
                        (let ((type (cadr var+type)))
                          (list (car var+type)

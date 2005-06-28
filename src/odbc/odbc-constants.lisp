@@ -1054,3 +1054,38 @@
 (defconstant $SQL_PC_PSEUDO			2
 #endif	/* ODBCVER >= #x0200 */
 |#
+
+
+
+;#if (ODBCVER >= 0x0300)
+(defconstant  $SQL_ATTR_ACCESS_MODE		$SQL_ACCESS_MODE)
+(defconstant  $SQL_ATTR_AUTOCOMMIT			$SQL_AUTOCOMMIT)
+(defconstant  $SQL_ATTR_CONNECTION_TIMEOUT	113)
+(defconstant  $SQL_ATTR_CURRENT_CATALOG	$SQL_CURRENT_QUALIFIER)
+(defconstant  $SQL_ATTR_DISCONNECT_BEHAVIOR	114)
+(defconstant  $SQL_ATTR_ENLIST_IN_DTC		1207)
+(defconstant  $SQL_ATTR_ENLIST_IN_XA		1208)
+(defconstant  $SQL_ATTR_LOGIN_TIMEOUT		$SQL_LOGIN_TIMEOUT)
+(defconstant  $SQL_ATTR_ODBC_CURSORS		$SQL_ODBC_CURSORS)
+(defconstant  $SQL_ATTR_PACKET_SIZE		$SQL_PACKET_SIZE)
+(defconstant  $SQL_ATTR_QUIET_MODE			$SQL_QUIET_MODE)
+(defconstant  $SQL_ATTR_TRACE				$SQL_OPT_TRACE)
+(defconstant  $SQL_ATTR_TRACEFILE			$SQL_OPT_TRACEFILE)
+(defconstant  $SQL_ATTR_TRANSLATE_LIB		$SQL_TRANSLATE_DLL)
+(defconstant  $SQL_ATTR_TRANSLATE_OPTION	$SQL_TRANSLATE_OPTION)
+(defconstant  $SQL_ATTR_TXN_ISOLATION		$SQL_TXN_ISOLATION)
+;#endif  /* ODBCVER >= 0x0300 */
+
+(defconstant $SQL_ATTR_CONNECTION_DEAD	1209)
+
+;/* values for SQL_ATTR_CONNECTION_DEAD */
+(defconstant  $SQL_CD_TRUE	1) ;			1L		/* Connection is closed/dead */
+(defconstant $SQL_CD_FALSE	0) ;			0L		/* Connection is open/available */
+
+
+;; only for windows ?
+(defconstant $SQL_WCHAR		 	-8)
+(defconstant $SQL_WVARCHAR	 	-9)
+(defconstant $SQL_WLONGVARCHAR 	-10)
+(defconstant $SQL_C_WCHAR	$SQL_WCHAR)
+

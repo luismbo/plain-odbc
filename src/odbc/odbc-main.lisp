@@ -48,7 +48,7 @@
         (write-string (string (cdr e)) sos)
         (write-string ";" sos))
       (let ((res (get-output-stream-string sos)))
-        (subseq res 0 (- (length res) 1))))))
+        (subseq res 0 (- (length res) 1)))))) 
 
 (defun driver-connect (connection-string)
  (let ((con (make-instance 'odbc-connection)))
@@ -133,6 +133,15 @@
     (setf (slot-value con 'connected-p) nil)
     (setf *open-connections* (remove con *open-connections*))
     nil))
+
+(defun trace-connection (con filename)
+  (%start-connection-trace (hdbc con) filename)
+  nil)
+
+(defun untrace-connection (coN)
+  (%stop-connection-trace (hdbc con))
+  nil) 
+
 
 (defun commit (con)
   (%commit (henv con) (hdbc con))

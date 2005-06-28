@@ -122,7 +122,7 @@ NIL
     <p>
       <br><b>[Function]</b><br>
       <tt>connect <i> dsn user password</i> </tt><br>
-      <tt>connect</tt> connects to an odbc datasource <i>dsn</i> 
+      <tt>connect</tt> connects to an odbc datasource, <i>dsn</i> 
       is the dsn of the datasource, <i>user</i> the user and 
       <i>password</i> the password. The return value is an 
       <tt>odbc-connection</tt>.
@@ -242,11 +242,13 @@ NIL
       <tt>parametertype</tt> determines the type of parameter and is one of 
     <ul>
       <li><tt>:string</tt> a string, not very long
-      <li><tt>:integer</tt>
-      <li><tt>:double</tt>
-      <li><tt>:datetime</tt> a point in time 
+      <li><tt>:unicode-string</tt> a string, not very long, the ODBC datatype is SQL_WVARCHAR
+      <li><tt>:integer</tt>, a integer, the ODBC datatype is SQL_INTEGER
+      <li><tt>:double</tt>,  a double float, the ODBC datatype is SQL_DOUBLE
+      <li><tt>:date</tt> a point in time, the ODBC datatype is $SQL_TIMESTAMP
       <li><tt>:binary</tt> an array of (unsigned-byte 8)
       <li><tt>:clob</tt>  a string, can be very large
+      <li><tt>:clob</tt>  a unicode string, can be very large
       <li><tt>:blob</tt> an array of (unsigned-byte 8), can be very large
     </ul> 
       Direction determines if the parameter is a <tt>in</tt> , <tt>out</tt> or 

@@ -1,24 +1,25 @@
 ;;; -*- Mode: lisp  -*-
 
 
+(in-package :test-plain-odbc)
 
-(defpackage :test-oracle
-  (:use :common-lisp :plain-odbc)
-  )
+(export '(run-oracle-tests))
 
-(in-package :test-oracle)
-
-(export 'run-all-tests)
-
-
-(defun run-all-tests (con)
+(defun run-oracle-tests (con)
   (oracle-type-test con)
-  (test1 con)
-  (test2 con)
-  (test3 con)
-  (test4 con)
-  (test5 con)
-  (test6 con))
+  (ora-test1 con)
+  (ora-test2 con)
+  (ora-test3 con)
+  (ora-test4 con)
+  (ora-test5 con)
+  (ora-test6 con)
+  (ora-test7 con)
+  #+ignore  ;; unicode support does not work for oracle
+  (ora-test8 con)
+  (ora-test9 con)
+  (ora-test10 con)
+  (ora-test11 con)
+  )
   
  
 ; this function replaces in a string every (code-char 13)  
@@ -66,14 +67,14 @@ create table type_test (
 
  
 
-(defun drop-test-proc (con proc)
+(defun ora-drop-test-proc (con proc)
   (unless (zerop (caar (exec-query con (format nil "select count(*) 
     from user_objects where object_name='~A'" proc))))
     (exec-command con (format nil "drop procedure ~A" proc))))
 
 
-(defun test1 (con)
-  (drop-test-proc con "TEST99")
+(defun ora-test1 (con)
+  (ora-drop-test-proc con "TEST99")
   (exec-command con (fix13 "
   create procedure TEST99 (a integer,b out integer) as 
   begin 
@@ -88,8 +89,8 @@ create table type_test (
     (free-statement stm)))
 
 
-(defun test2 (con)
-  (drop-test-proc con "TEST99")
+(defun ora-test2 (con)
+  (ora-drop-test-proc con "TEST99")
   (exec-command con (fix13 "
   create procedure TEST99 (a varchar2,b out varchar2) as
   begin
@@ -107,10 +108,10 @@ create table type_test (
 
 
 
-(defun test3 (con)
+(defun ora-test3 (con)
   (let ((*universal-time-to-date-dataype* 'write-to-string)
         (*date-datatype-to-universal-time* 'parse-integer))
-    (drop-test-proc con "TEST99")
+    (ora-drop-test-proc con "TEST99")
     (let ((a (caar (exec-query con "select sysdate from dual"))))
       (exec-command con (fix13 "
   create procedure TEST99 (a date,b out date ) as 
@@ -126,8 +127,8 @@ create table type_test (
     (commit con)))
 
 
-(defun test4 (con)
-  (drop-test-proc con "TEST99")
+(defun ora-test4 (con)
+  (ora-drop-test-proc con "TEST99")
   (exec-command con (fix13 "
    create procedure TEST99 (a in out varchar2, b in out varchar2) as
     x varchar2(1000); begin x:=a;a:=b;b:=x; end;"))
@@ -137,8 +138,8 @@ create table type_test (
       (assert (equal res (list "xyz" "abc"))))))
  
 
-(defun test5 (con)
-  (drop-test-proc con "TEST99")
+(defun ora-test5 (con)
+  (ora-drop-test-proc con "TEST99")
   (exec-command con (fix13 "
    create procedure TEST99 (a raw,b out raw) as 
    begin 
@@ -154,24 +155,11 @@ create table type_test (
 
 
 
-(defun universal-time-list (time)
-  (reverse (subseq (multiple-value-list (decode-universal-time time)) 0 6 )))
-
-(defun list-universal-time (list)
-  (assert list ())
-  (encode-universal-time         
-   (or (sixth list) 0)
-   (or (fifth list) 0)
-   (or (fourth list) 0)
-   (or (third list) 1)
-   (or (second list) 1)
-   (or (first list) 1900)))
-
-(defun test6 (con)
+(defun ora-test6 (con)
   (let ((*universal-time-to-date-dataype* 'universal-time-list)
         (*date-datatype-to-universal-time* 'list-universal-time))
 
-    (drop-test-proc con "TEST99")
+    (ora-drop-test-proc con "TEST99")
     (exec-command con (fix13 "
      create procedure TEST99 (a date, b out date) as 
     begin
@@ -186,5 +174,67 @@ create table type_test (
       (assert (equal res '(((2005 6 7 23 59 59))))))))
 
 
-(defun test7 (con)
-  ())
+(defun ora-test7 (con)
+  (let ((filename (namestring (merge-pathnames "odb-trace-test.log" *test-temp-dir*))))
+    (when (probe-file filename)
+      (DELETE-FILE filename))
+    (assert (not (probe-file filename)))
+    (trace-connection con filename)
+    (dotimes (i 5) (exec-query con "select * from dual"))
+    (with-open-file (f filename :direction :input)
+      (assert (> (file-length f) 500)))
+    (untrace-connection con)
+    ;(break)
+    (DELETE-FILE filename)
+    (exec-query con "select * from dual")
+    (assert (not (probe-file filename)))
+    ))
+
+;; works only with oracle 9 ?
+;; this does not work. mybe with the oracle odbc driver?
+(defun ora-test8 (con)
+  (ignore-errors (exec-command con "drop table testtab99"))
+  (exec-command con "create table testtab99 (id integer, txt nvarchar2(2000))")
+  (let ((str (coerce (list #\a #\j (code-char 1000) (code-char 2000) #\o) 'string)))
+  (with-prepared-statement (stm con "insert into testtab99 (id,txt) values(?,?)"
+                                '((:integer :in) (:unicode-string :in)))
+    (exec-prepared-update stm (list 1 str)))
+  (let ((res (exec-query con "select txt from testtab99 where id =1")))
+    (assert (equal (list str) res)))))
+
+
+(defun ora-test9(con)
+  (let ((res (exec-query con "select to_date('2005-6-7 13:04:45','yyyy-mm-dd hh24:mi:ss' ) as a from dual")))
+    (assert (= (encode-universal-time 45 4 13 7 6 2005) (caar res)))))
+
+(defun ora-test10(con)
+  (with-prepared-statement (stm con "
+          select to_char(?,'yyyy-mm-dd hh24:mi:ss')
+          from dual" 
+                                '((:date :in)))
+    (let ((res (exec-prepared-query stm (list 
+                                         (encode-universal-time 1 2 3 13 10 2005)))))
+      (assert (equalp "2005-10-13 03:02:01" (caar res))))))
+
+(defun ora-test11(con)
+  (exec-command con (fix13 "
+     create or replace package test99_pkg as
+       type refcursor is ref cursor;
+       procedure test_cursor(v varchar2,c in out refcursor);
+     end;"))
+  (exec-command con (fix13 "
+     create or replace package body test99_pkg as
+      procedure test_cursor(v varchar2,c in out refcursor) is
+      begin
+        open c for select v as a,'1234567890' as b from dual;
+      end;
+     end;"))
+  (with-prepared-statement (stm con 
+                                "{call test99_pkg.test_cursor(?,?)}" 
+                                '((:string :in )))
+    (let ((str "just a string"))
+      (let ((res (exec-prepared-query stm (list str))))
+        (assert (equal res (list (list str "1234567890"))))))))
+
+       
+

@@ -35,12 +35,14 @@
       (values 'binary-column nil))
     ((#.$SQL_LONGVARBINARY)
       (values 'blob-column nil))
-    ;; fixme, -9 seems to be unicode varchar on sql server
-    ;;        -8 seems to be unicode char on sql server
-    ((#.$SQL_CHAR #.$SQL_VARCHAR -9  -8)
-        (values 'string-column nil))
-    ((#.$SQL_LONGVARCHAR -10)  ; -10 ntext on sql server
+    ((#.$SQL_CHAR #.$SQL_VARCHAR) 
+      (values 'string-column nil))
+    ((#.$SQL_WCHAR #.$SQL_WVARCHAR)
+      (values 'unicode-string-column nil))
+    ((#.$SQL_LONGVARCHAR )  ; -10 ntext on sql server
       (values 'clob-column nil))
+    ((#.$SQL_WLONGVARCHAR)
+      (values 'uclob-column))
     ((#.$SQL_INTEGER #.$SQL_SMALLINT #.$SQL_TINYINT #.$SQL_BIT)
       (values 'integer-column nil))
     ((#.$SQL_TIMESTAMP #.$SQL_DATE)(values 'date-column nil))
@@ -109,6 +111,40 @@
       nil
       (progn
         (%get-string (slot-value column 'value-ptr) len)))))
+;;;-------------------
+;;;   unicode-string
+;;;-------------------
+
+;; a simple 16 bit unicode column, in ODBC this is SQL_WCHAR (SQL_WVARCHAR) 
+;; and SQL_C_WCHAR 
+
+(defclass unicode-string-column (column) ())
+
+(defmethod initialize-column ((column unicode-string-column) args)
+  (declare (ignore args))
+  (setf (slot-value column 'c-type) $SQL_C_WCHAR)
+  (setf (slot-value column 'buffer-length)
+          ;; column-size is size in bytes, not in characters
+          (if (zerop (slot-value column 'column-size))
+            *max-precision*
+            (if (> (slot-value column 'column-size) *max-precision*)
+              (error "column ~A has length ~A, larger than maximum size ~A" 
+                     (let ((name (slot-value column 'column-name)))
+                       (if (equalp name "") 
+                         (slot-value column 'position)
+                         name))
+                     (slot-value column 'column-size)
+                     *max-precision*)
+              (* 2 (1+ (slot-value column 'column-size)))))))
+
+(defmethod get-column-value ((column unicode-string-column))
+  (let ((len (%get-long (slot-value column 'ind-ptr))))
+    ;; len is size in bytes, not characters!
+    (if (= len $SQL_NULL_DATA)
+      nil
+      (progn
+;        (break)
+        (wchar-bytes-to-string (%get-binary (slot-value column 'value-ptr) len))))))
 
 
 
@@ -294,6 +330,30 @@
        ind-ptr)
       (%dispose-ptr value-ptr)
       (%dispose-ptr ind-ptr))))
+
+;;;-----------------------------
+;;; uclob column
+;;;-----------------------------
+(defclass uclob-column (column) ())
+
+(defmethod initialize-column ((column uclob-column) args)
+  (declare (ignore args))
+  (setf (slot-value column 'bound) nil)
+  (setf (slot-value column 'c-type) $SQL_C_WCHAR)
+  (setf (slot-value column 'buffer-length) *max-precision*))
+
+(defmethod get-column-value ((column uclob-column))
+  (let* ((value-ptr (%new-ptr :char (slot-value column 'buffer-length)))
+         (ind-ptr (%new-ptr :long)))
+    (unwind-protect
+      (get-unicode-character-data 
+       (slot-value column 'hstmt)
+       (slot-value column 'position)
+       value-ptr 
+       (slot-value column 'buffer-length)
+       ind-ptr)
+      (%dispose-ptr value-ptr)
+      (%dispose-ptr ind-ptr))))
         
 ;;;-----------------------------
 ;;; blob column
@@ -343,6 +403,7 @@
                                       ind-ptr)))
       (handle-error sqlret)
       (let ((len (%get-long ind-ptr)))
+        ;(break)
         (cond 
           ((= len $sql_null_data) nil)
           ;; character data has a 0 byte appended, the length does not include it
@@ -374,6 +435,63 @@
               ;; fetch the last part of the data
           (setf len (%get-long ind-ptr))
           (let ((str (%get-string value-ptr len)))
+            (write-string str sos))
+          (get-output-stream-string sos))))))))
+
+;;; the version for 16bit unicode 
+
+(defun get-unicode-character-data (hstmt position value-ptr buffer-length ind-ptr)
+  ;; local error handling, we can not use the general error handling
+  ;; since this resets the sql-state
+  ;; anyway the normal error handling would warn because of 
+  ;; data truncation which is in this procedure not an abnormal condition
+
+  (flet ((handle-error (code)
+           (unless (or (= code $SQL_SUCCESS)
+                       (= code $SQL_SUCCESS_WITH_INFO))
+             (multiple-value-bind (code2 condition)
+                 (error-handling-fun code nil nil hstmt)
+               (declare (ignore code2))
+               (error condition)))))
+    (let* ((sqlret (%sql-get-data-raw hstmt
+                                      position
+                                      $SQL_C_WCHAR ; always the same
+                                      value-ptr
+                                      buffer-length
+                                      ind-ptr)))
+      (handle-error sqlret)
+      (let ((len (%get-long ind-ptr)))
+        (cond 
+          ((= len $sql_null_data) nil)
+          ;; character data has a 0 byte appended, the length does not include it
+          ;; but it is taken into account when placing the data into the buffer
+          ((and (/= len $SQL_NO_TOTAL)
+                (<= (+ 2 len) buffer-length))
+            ;; the data fits into the buffer, return it
+            (%get-unicode-string value-ptr len))
+          
+          ;; we have to fetch the data in several steps
+          (t 
+            (let ((sos (make-string-output-stream)))
+              (loop
+                (if (and (= sqlret $SQL_SUCCESS_WITH_INFO)
+                         (equal (sql-state (%null-ptr) (%null-ptr) hstmt)
+                                "01004"))
+                  ;; an 0 byte is append to a string, ignore that
+                  
+                  (let ((str (%get-unicode-string value-ptr (- buffer-length 2))))
+                    (write-string str sos)
+                    (setf sqlret (%sql-get-data-raw hstmt
+                                            position
+                                            $SQL_C_WCHAR
+                                            value-ptr
+                                            buffer-length
+                                            ind-ptr))
+                    (handle-error sqlret))
+                  (return)))
+              ;; fetch the last part of the data
+          (setf len (%get-long ind-ptr))
+          (let ((str (%get-unicode-string value-ptr len)))
             (write-string str sos))
           (get-output-stream-string sos))))))))
     

@@ -4,7 +4,7 @@
 (asdf:defsystem "plain-odbc"
   ;:package :cl-user
   ;:binary-pathname (translate-logical-pathname "plain-odbc:bin;")
- 
+  
   ;:source-extension "lisp"
   :components (;; global customization
                (:file "customization")
