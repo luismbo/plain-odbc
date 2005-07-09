@@ -10,7 +10,7 @@
 
 (defvar *universal-time-to-date-dataype* 'identity)
 (defvar *date-datatype-to-universal-time* 'identity)
-
+(defvar *date-type-predicate* (lambda (x) nil))
 
 (defvar *max-precision* 65536)
 

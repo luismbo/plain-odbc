@@ -120,7 +120,7 @@
 
 ;; before the connection is closed, it is rolled back.
 ;; odbc complains if a connection with an uncomitted transaction
-;; is closed. Commiting the transaction would be wrong.
+;; is closed. Committing the transaction would be wrong.
 
 (defun close-connection (con)
   (when (connected-p con)
@@ -156,12 +156,15 @@
 ;; the only way to create a odbc-query is to create a 
 ;; prepared statement
 
+;; fixme: what is the difference between statement and prepared-statement
+
 (defclass odbc-query ()
   ((connection :initarg :connection :reader connection)
    (active-p :initarg :active-p :initform nil)
    (hstmt :initform nil :initarg :hstmt :accessor hstmt) ; = cursor??
    (columns :initform nil)
-   (column-count :initform nil :accessor column-count)))
+   (column-count :initform nil :accessor column-count)
+   (parameters :initarg :parameters :accessor parameters)))
 
 (defun make-query (con)
   (let ((new-query (make-instance 'odbc-query
@@ -174,8 +177,9 @@
    new-query))
 
 
-(defclass prepared-statement (odbc-query)
-  ((parameters :initarg :parameters :accessor parameters)))
+(defclass prepared-statement (odbc-query) ())
+ 
+;; ((parameters :initarg :parameters :accessor parameters)))
 
 (defun make-prepared-statement (con)
   (let ((new-query (make-instance 'prepared-statement
@@ -243,6 +247,8 @@
 
 
 (defmethod fetch-query-results ((query odbc-query))
+  ;nil
+  
   (with-slots (hstmt columns column-count)
       query
       (let ((res nil))
@@ -251,8 +257,9 @@
             (return-from fetch-query-results (nreverse res)))
           (let ((row nil))
             (dotimes (i column-count)
+              ;(get-column-value (aref columns i))
               (push (get-column-value (aref columns i)) row))
-            (push (nreverse row) res))))))
+            (push (nreverse row) res)))))) 
 
 ;;; on hold
 #+ignore
@@ -266,97 +273,117 @@
           (push (get-column-value (aref columns i)) row))
         (nreverse row)))))
 
-;;; direct sql
-(defun exec-query (con str)
-  (let ((query (make-query con)))
-    (unwind-protect 
-      (progn
-        (%sql-exec-direct str (hstmt query) (henv con) (hdbc con))
-        (bind-columns query)
-        ;(break)
-        (let ((res (fetch-query-results query ))
-              (names (coerce (column-names query) 'list)))
-          (values res names)))
-      (free-query query)
-      )))
+;; convert a obj to a parameter specification
+;; a parameter specification is a list of 
+;; parameter-type on of :integer :string :clob .....
+;; parameter direction :in or :out :in-out
+;; further parameter for the parameter, ex. for a string this is the length
+;;  
+;; we accept normal objects i.e. non cons the parameter specification s derived
+;; or a list -->the first element is the value for the parameter
+;; the cdr is (keyword direction .....) -> (keyword direction ....)
+;;            (keyword )    -> (keyword :in)
+;;            ()            -> (:string :in)
+;;  this function returns four values: 
+;; the value, parameter-type direction args 
 
-#+ignore
-(defun exec-query-new (connection sql parameter-list)
-  (with-slots (hdbc) connection
-    (let* ((query (make-query connection))
-           (pos 0)
-           (hstmt (hstmt query)))
-      ;; only make-query could have failed, and then there would be no 
-      ;; query to free
-      (unwind-protect
-        (progn
-          (setf (parameters query) (make-array (length parameter-list) 
-                                               :initial-element nil))
-          (dolist (param parameter-list)
-            (multiple-value-bind (type direction args)
-                (if (and param (symbolp param))
-                  (values param :in nil)
-                  (values (first param)
-                          (second param)
-                          (rest (rest param))))
-              (let ((parameter (create-parameter query pos type direction args)))
-            (bind-parameter hstmt pos parameter)
-            (setf (aref (parameters query) pos) parameter) 
-            (incf pos))))
-          (%sql-exec-direct sql (hstmt query) (henv connection) (hdbc connection))
-          (bind-columns query)
-          (let ((res (fetch-query-results query ))
-                (names (coerce (column-names query) 'list)))
-            (values res names)))
-          (free-query query)))))
+(defun object-to-parameter-spec (obj)
+  (typecase obj
+    (cons 
+      (let ((value (car obj))
+            (rest (cdr obj)))
+        (cond 
+          ((not rest) (values value :string :in nil))
+          ((not (cdr rest)) (values value (car rest) :in nil))
+          (t (values value (first rest) (second rest) (cddr rest))))))
+    (string (values obj :string :in (list (length obj))))
+    (integer (values obj :integer :in nil))
+    (float (values (coerce obj 'double-float) :double :in nil))
+    (array (values obj  :binary :in (list (length obj))))
+    (t (if (funcall *date-type-predicate* obj)
+         (values obj (list :date :in))
+         (error "not able to deduce parameter specification for ~A" obj)))))
 
-#+ignore
-(defun exec-query-n (con str)
-  (let ((query (make-query con))
-        (res-list nil))
-    (unwind-protect 
-      (progn
-        (%sql-exec-direct str (hstmt query) (henv con) (hdbc con))
-        (loop
-          (bind-columns query)                              ;(break)
-          (let ((res (fetch-query-results query ))
-                (names (coerce (column-names query) 'list)))
-            (push (list res names) res-list)
-            (unbind-columns query)
-            (unless (%sql-more-results (hstmt query))
-               (return)))))
-      (free-query query))
-    (reverse res-list)
-    ))
-  
-
-; (exec-query-2 *con2* "select 1;select 2")
-
-
-
-(defmethod exec-update (con sql-string)
-  (let ((query (make-query con)))
-    (unwind-protect 
-      (with-slots (hstmt) query
-        (with-slots (henv hdbc) con
-          (%sql-exec-direct sql-string hstmt henv hdbc)
-          (let ((res (result-rows-count hstmt)))
-            (if (= res -1) nil res))))
-      (free-query query))))
-
-
-(defmethod exec-command (con sql-string)
-  (let ((query (make-query con)))
+(defun exec-sql (connection sql parameter-list)
+  (let ((query (make-query connection)))
     (unwind-protect
-      (with-slots (hstmt) query
-        (with-slots (henv hdbc) con
-          (%sql-exec-direct sql-string hstmt henv hdbc)
-          (let ((res (result-rows-count hstmt)))
-            (if (= res -1) nil res))))
-      (free-query query))))
+      (progn
+        ;; parameter preparation
+        (setf (parameters query) (make-array (length parameter-list) 
+                                             :initial-element nil))
+        (let ((pos 0))
+          (dolist (param parameter-list)
+            (multiple-value-bind (value type direction args) 
+                (object-to-parameter-spec param)
+              (let ((parameter (create-parameter query pos type direction args)))
+                (bind-parameter (hstmt query) pos parameter)
+                (setf (aref (parameters query) pos) parameter)
+                (unless (eql direction :out)
+                  (set-parameter-value parameter value))
+                (incf pos)))))
+                
+        (let ((res (%sql-exec-direct sql (hstmt query) (henv connection) (hdbc connection)))
+              (last-pos nil))
+          (if (= res $SQL_NEED_DATA)
+            (loop
+              (multiple-value-bind (res pos)
+                  (sql-param-data-position (hstmt query))
+                (unless (= res $SQL_NEED_DATA)
+                  (return)) ; from the loop
+                (when (eql pos last-pos)
+                  (error "paramter ~A is not filled yet" pos))
+                (setf last-pos pos)
+                (let ((param (aref (slot-value query 'parameters) pos)))
+                  (send-parameter-data param (hstmt query)))))))
 
-;;; parameterized sql
+        (let ((res-list nil)
+              (row-count (result-rows-count (hstmt query))))
+          (loop
+            (when (zerop (result-columns-count (hstmt query))) (return))
+            (bind-columns query)
+            (let ((res (fetch-query-results query ))
+                  (names (coerce (column-names query) 'list)))
+              (push (list res names) res-list)
+              (unbind-columns query)
+              (unless (%sql-more-results (hstmt query))
+                (return))))
+          (let ((return-parameters nil #+ignore (get-parameters query)))
+            (values row-count (nreverse res-list) return-parameters))))
+        (free-query query)
+        )))
 
+(defun exec-query* (connection sql parameter-list)
+  (multiple-value-bind (rows result-sets out-params)
+      (exec-sql connection sql parameter-list)
+    (declare (ignore rows) (ignore out-params))
+    (let ((res nil))
+      (dolist (result-set result-sets)
+        (push (first result-set) res)
+        (push (second result-set) res))
+      (values-list (nreverse res)))))
+
+(defun exec-query (connection sql &rest parameter-list)
+  (exec-query* connection sql parameter-list))
+
+(defun exec-update* (connection sql parameter-list)
+  (multiple-value-bind (rows result-sets out-params)
+      (exec-sql connection sql parameter-list)
+    (declare (ignore result-sets out-params))
+    rows))
+
+(defun exec-update (connection sql &rest parameter-list)
+  (exec-update* connection sql parameter-list))
+
+(defun exec-command* (connection sql parameter-list)
+  (multiple-value-bind (rows result-sets out-params)
+      (exec-sql connection sql parameter-list)
+    (declare (ignore rows result-sets))
+    (values-list out-params)))
+
+(defun exec-command (connection sql &rest parameter-list)
+  (exec-command* connection sql parameter-list))
+
+  
 (defmethod prepare-statement ((connection odbc-connection) sql parameter-list)
   (with-slots (hdbc) connection
     (let* ((query (make-prepared-statement connection))
@@ -433,7 +460,7 @@
   (let ((res (with-error-handling (:hstmt hstmt) (%sql-param-data hstmt ptr))))
     (values res (if (= res $SQL_NEED_DATA) 
                   (%get-long (%get-ptr ptr)))))))
-
+ 
 (defmethod exec-prepared-query ((query prepared-statement) parameters)
   (let ((hstmt (hstmt query)))
     (unwind-protect 
@@ -472,3 +499,4 @@
         (set-params-and-exec query parameters)
         (get-parameters query))
       (%free-statement hstmt :close))))
+

@@ -30,12 +30,20 @@
 (defun peek-bytes (where size)
   (ffc::peek where (list 'ffi:c-array 'ffi:uint8 size)))
 
+(defun peek-characters (adr len)
+  (ffi:with-c-var (place 'ffi:c-pointer adr)
+    (ffi:cast place `(ffi:c-ptr (ffi:c-array ffi:character ,len)))))
+
+(defun poke-characters (adr str)
+  (ffi:with-c-var (place 'ffi:c-pointer adr)
+    (setf (ffi:cast place `(ffi:c-ptr (ffi:c-array ffi:character ,(length str)))) str)))
+
+
 (defun malloc (size)
   (ffi:foreign-address 
    (ffi:allocate-shallow 'ffi:uint8 
                          ;; clisp complains if size is 0
                          :count (if (zerop size) 1 size))))
-
 
 (defun poke-bytes (where a)
   (dotimes (i (length a))
@@ -85,7 +93,13 @@
   (vector->string (peek-bytes ptr (foreign-strlen ptr))))
 
 (defun %get-string (ptr len)
-  (vector->string (peek-bytes ptr len)))
+  (peek-characters ptr len))
+;; old version
+;;  (vector->string (peek-bytes ptr len))
+
+;(defun %get-string (ptr len)
+;  (vector->string (peek-bytes ptr len)))
+
   
 
 '(defun %get-cstring (ptr)
@@ -102,22 +116,15 @@
 (defun %get-cstring-length (ptr)
    (foreign-strlen ptr))
 
-'(defmacro %put-str (ptr string &optional max-length)
-  (declare (ignore max-length))
-  `(string-to-char* ,string ,ptr))
-
+; this methods causes coredumps, not immediately but at some later gc
+#+ignore
 (defun %put-str (ptr str &optional max-length)
   (declare (ignore max-length))
   (ffi:with-c-var (place 'ffi:c-pointer  ptr)
     (setf (ffi:cast place `ffi:c-string) str)))
 
-;an alternative implementation
-;(defun %put-str2 (ptr str len)
-;  (dotimes (i (length str))
-;    (poke-byte (ptr-add ptr i) (char-code (char str i)))))
-
-
-
+(defun %put-str (ptr str &optional len)
+  (poke-characters ptr str))
 
 (defun %cstring-into-vector (ptr vector offset size-in-bytes)
   "Copy C string into Lisp vector."

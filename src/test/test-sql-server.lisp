@@ -17,14 +17,18 @@
   (ss-test7 con)
   (ss-test8 con)
   (ss-test8a con)
-  ;(ss-test9 con)
-  ;(ss-test10 con)
-  ;(ss-test11 con)
+  (ss-test9 con)
+  (ss-test10 con)
+  (ss-test11 con)
   (ss-test12 con)
   (ss-test13 con)
   (ss-test14 con)
   (ss-test15 con)
-  (ss-test16 con))
+  (ss-test16 con)
+  (ss-test17 con)
+  (ss-test18 con)
+  (ss-test19 con)
+  (ss-test20 con))
 
 (defparameter *sql-server-type_test-ddl* "
 CREATE TABLE [type_test] (
@@ -52,7 +56,7 @@ CREATE TABLE [type_test] (
 	[t_timestamp] [timestamp] NULL ,
 	[t_tinyint] [tinyint] NULL ,
 	[t_uniqueidentifier] [uniqueidentifier] NULL ,
-	[t_varbinary] [varbinary] (50) NULL ,
+	[t_varbinary] [varbinary] (2000) NULL ,
 	CONSTRAINT [PK_type_test] PRIMARY KEY  CLUSTERED 
 	(
 		[id]
@@ -278,7 +282,7 @@ CREATE TABLE [type_test] (
                          (1+ mp)
                          (* 2 mp)
                          (1- (* 2 mp))
-                         (1+ (* 2 mp))))(time (load "src/test/alisp-helper-rav.lisp"))
+                         (1+ (* 2 mp)))) 
         (let ((byte-vec (make-funny-bytes len)))
           (exec-prepared-update stm (list len byte-vec))
           (let ((res (exec-query con (format nil "select b from test999 where a=~A" len))))
@@ -363,3 +367,72 @@ CREATE TABLE [type_test] (
                                          (encode-universal-time 1 2 3 13 10 2005)))))
       (assert (equalp "2005-10-13 03:02:01" (caar res))))))
 
+
+(defun ss-test17 (con)
+  (let ((row
+          (first (exec-query con "select ?,?,?,? " 12342 1d3 "bla" #(1 2 3 4)))))
+    (assert (equal '(12342 1d3 "bla") (subseq row 0 3)))
+    (assert (equal (coerce (fourth row) 'list) '(1 2 3 4)))))
+
+
+(defun ss-test18 (con)
+  (let* ((str1 (make-string 1000 :initial-element #\p))
+        (str2 (make-string 1900 :initial-element #\k))
+        (id1 (random 10000))
+        (id2 (+ id1 (random 10000))))
+    ;(pprint 1)
+    (exec-update con "delete from type_test where id in (?,?)" id1 id2)
+    (exec-update con "insert into type_test (id,t_varchar) values(?,?);
+                  insert into type_test (id,t_varchar) values(?,?)" 
+                 id1 str1 id2 str2)
+    (multiple-value-bind (r1 m1 r2 m2)
+        (exec-query con "select id,t_varchar from type_test where id=? ;
+                        select id as a,t_varchar as b from type_test where id=?"
+                        id1 id2 )
+      (assert (and
+                (equal r1 (list (list id1 str1)))
+                (equal r2 (list (list id2 str2)))
+                (equal m1 '("id" "t_varchar"))
+                (equal m2 '("a" "b")))))
+    (commit con)))
+
+(defun ss-test19 (con)
+  (let* ((str1 (make-string 100000 :initial-element #\p))
+         (str2 (make-string 190000 :initial-element #\k))
+         (id1 (random 10000))
+         (id2 (+ id1 (random 10000))))
+    (exec-update con "delete from type_test where id in (?,?)" id1 id2)
+    (exec-update con "insert into type_test (id,t_text) values(?,?);
+                  insert into type_test (id,t_text) values(?,?)" 
+                 id1 (list str1 :clob) id2 (list str2 :clob))
+    (multiple-value-bind (r1 m1 r2 m2)
+         (exec-query con "select id,t_text from type_test where id=? ;
+                        select id as a,t_text as b from type_test where id=?"
+                    id1 id2 )
+      (assert (and
+                (equal r1 (list (list id1 str1)))
+                (equal r2 (list (list id2 str2)))
+                (equal m1 '("id" "t_text"))
+                (equal m2 '("a" "b")))))
+     (commit con)))
+
+(defun ss-test20 (con)
+  (dotimes (i 100)
+    (let* ((str (make-string 100 :initial-element #\p))
+           (binary (make-array 1000 :initial-element (random 256)))
+           (id (random 1000)))
+      (exec-update con "delete from type_test where id =?" id)
+      (exec-update con "insert into type_test (t_image,id,t_text) values(?,?,?)" 
+                   (list binary :blob) id (list str :clob))
+      (multiple-value-bind (r1 m1)
+          (exec-query con 
+                      "select id aaa,t_image bbb,t_text ccc from type_test where id=?"
+                      id)
+        (assert (equalp r1 (list (list id (coerce binary '(array (unsigned-byte 8))) str))))
+        (assert (equal m1 '("aaa" "bbb" "ccc")))
+        (commit con)))))
+
+
+    
+      
+              

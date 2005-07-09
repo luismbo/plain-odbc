@@ -99,6 +99,7 @@
 
 ;;; rav:
 ;;; but the remaining macro is still large
+#+ignore
 (defmacro with-error-handling ((&key henv hdbc hstmt (print-info t))
                                    odbc-call &body body)
   (declare (ignore print-info))
@@ -114,7 +115,7 @@
 
 ;;; rav:
 ;; the original macro
-#+ignore
+#-ignore 
 (defmacro with-error-handling ((&key henv hdbc hstmt (print-info t))
                                    odbc-call &body body)
   (let ((result-code (gensym)))

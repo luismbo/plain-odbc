@@ -110,10 +110,10 @@
     (if (= len $SQL_NULL_DATA)
       nil
       (progn
-        (%get-string (slot-value column 'value-ptr) len)))))
+        (%get-string (slot-value column 'value-ptr) len))))) 
 ;;;-------------------
 ;;;   unicode-string
-;;;-------------------
+;;;------------------- 
 
 ;; a simple 16 bit unicode column, in ODBC this is SQL_WCHAR (SQL_WVARCHAR) 
 ;; and SQL_C_WCHAR 
@@ -161,7 +161,6 @@
 
 
 (defmethod get-column-value ((column integer-column))
-  ;(break)
   (let ((len (%get-long (slot-value column 'ind-ptr))))
     (if (= len $SQL_NULL_DATA)
       nil
@@ -181,11 +180,13 @@
   (setf (slot-value column 'buffer-length) 8))
 
 (defmethod get-column-value ((column double-column))
+  ;(%get-long (slot-value column 'ind-ptr))
+  ;(%get-double-float (slot-value column 'value-ptr))
    (let ((len (%get-long (slot-value column 'ind-ptr))))
-    (if (= len $SQL_NULL_DATA)
-      nil
-      (progn
-        (%get-double-float (slot-value column 'value-ptr))))))
+     (if (= len $SQL_NULL_DATA)
+       nil
+       (progn
+         (%get-double-float (slot-value column 'value-ptr))))))
 
 ;;;------------------------
 ;;; date column
@@ -193,7 +194,7 @@
 (defclass date-column (column) ())
 
 (defmethod initialize-column ((column date-column) args)
-  (declare (ignore args))
+  (declare (ignore args)) 
   (setf (slot-value column 'c-type) $SQL_C_TIMESTAMP)
   ;; fixme: really 32?
   (setf (slot-value column 'buffer-length) 32))
@@ -544,3 +545,4 @@
           (setf res (adjust-array res (+ res-len len)))
           (setf (subseq res res-len (+ res-len len)) vec))
         res))))))
+
