@@ -124,6 +124,7 @@
     (setf (ffi:cast place `ffi:c-string) str)))
 
 (defun %put-str (ptr str &optional len)
+  (declare (ignore len))
   (poke-characters ptr str))
 
 (defun %cstring-into-vector (ptr vector offset size-in-bytes)
