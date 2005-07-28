@@ -28,7 +28,9 @@
   (ss-test17 con)
   (ss-test18 con)
   (ss-test19 con)
-  (ss-test20 con))
+  (ss-test20 con)
+  (ss-test21 con)
+  (ss-test22 con))
 
 (defparameter *sql-server-type_test-ddl* "
 CREATE TABLE [type_test] (
@@ -208,10 +210,10 @@ CREATE TABLE [type_test] (
     (exec-command con "create procedure test99
    @a datetime, @b datetime out as set @b=dateadd(d,2,@a)")
     (with-prepared-statement (stm con "{call test99(?,?)}" '(:date (:date :out)))
-      (let ((res (exec-prepared-command stm '((2003 3 4)))))
-        (assert (equal res '((2003 3 6 0 0 0))))))
+      (let ((res (exec-prepared-command stm '((:date 2003 3 4)))))
+        (assert (equal res '((:date 2003 3 6 0 0 0))))))
     (let ((res (exec-query con "select dateadd(s,86399,'2005-6-7')")))
-      (assert (equal res '(((2005 6 7 23 59 59))))))))
+      (assert (equal res '(((:date 2005 6 7 23 59 59))))))))
   
 (defun ss-test7 (con)
   (let ((filename (namestring (merge-pathnames "odb-trace-test.log" *test-temp-dir*))))
@@ -431,6 +433,34 @@ CREATE TABLE [type_test] (
         (assert (equalp r1 (list (list id (coerce binary '(array (unsigned-byte 8))) str))))
         (assert (equal m1 '("aaa" "bbb" "ccc")))
         (commit con)))))
+
+
+(defun ss-test21 (con)
+   (let ((*universal-time-to-date-dataype* 'universal-time-list)
+         (*date-datatype-to-universal-time* 'list-universal-time)
+         (*date-type-predicate* 'date-lisp-p))
+     (let ((res (exec-query con "select dateadd(d,1,?)" 
+                            '((:date 2005 4 5) :date))))
+           (assert (equal res '(((:date 2005 4 6 0 0 0))))))))
+
+
+
+(defun ss-test22 (con)
+  (let ((res (first 
+              (exec-query con "
+          select 
+           ? as t_double,
+           ? as t_integer,
+           ? as t_varchar,
+           ? as t_varbinary"
+                          1223455.334 12345 "blablablub" #(1 2 3 4)))))
+    (assert (equal 
+             '(1223455 12345 "blablablub" (1 2 3 4))
+             (list (truncate (first res))
+                   (second res)
+                   (third res)
+                   (coerce (fourth res) 'list))))))
+
 
 
     

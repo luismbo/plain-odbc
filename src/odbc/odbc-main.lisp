@@ -289,19 +289,21 @@
 
 (defun object-to-parameter-spec (obj)
   (typecase obj
-    (cons 
-      (let ((value (car obj))
-            (rest (cdr obj)))
-        (cond 
-          ((not rest) (values value :string :in nil))
-          ((not (cdr rest)) (values value (car rest) :in nil))
-          (t (values value (first rest) (second rest) (cddr rest))))))
+    (list
+      (if (not obj)
+        (values nil :string :in '(1))
+        (let ((value (car obj))
+              (rest (cdr obj)))
+          (cond 
+            ((not rest) (error "parameter without a valid type spec: ~A" obj))
+            ((not (cdr rest)) (values value (car rest) :in nil))
+            (t (values value (first rest) (second rest) (cddr rest)))))))
     (string (values obj :string :in (list (length obj))))
     (integer (values obj :integer :in nil))
     (float (values (coerce obj 'double-float) :double :in nil))
     (array (values obj  :binary :in (list (length obj))))
     (t (if (funcall *date-type-predicate* obj)
-         (values obj (list :date :in))
+         (values obj :date :in)
          (error "not able to deduce parameter specification for ~A" obj)))))
 
 (defun exec-sql (connection sql parameter-list)

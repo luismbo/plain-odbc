@@ -23,10 +23,17 @@
       (setf (aref bytes i) (random 256)))))
 
 (defun universal-time-list (time)
-  (reverse (subseq (multiple-value-list (decode-universal-time time)) 0 6  )))
+  (cons :date (reverse (subseq (multiple-value-list (decode-universal-time time)) 0 6  ))))
+
+
+(defun date-lisp-p (list)
+  (and (list list)
+       (eql :date (car list))))
+
 
 (defun list-universal-time (list)
-  (assert list ())
+  (assert  (date-lisp-p list) ())
+  (setf list (cdr list))
   (encode-universal-time         
    (or (sixth list) 0)
    (or (fifth list) 0)

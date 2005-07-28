@@ -258,7 +258,7 @@
   ())
 
 (defmethod initialize-parameter ((param binary-parameter) args)
-  (let ((length-of-buffer (or *default-binary-parameter-size* (car args))))
+  (let ((length-of-buffer (or (car args) *default-binary-parameter-size* )))
     (with-slots (value-type parameter-type buffer-length value-ptr
                             ind-ptr) param
       (setf value-type $SQL_C_BINARY)

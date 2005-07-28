@@ -167,11 +167,11 @@ create table type_test (
     end;
     "))
     (with-prepared-statement (stm con "{call TEST99(?,?)}" '(:date (:date :out)))
-      (let ((res (exec-prepared-command stm '((2003 3 4)))))
-        (assert (equal res '((2003 3 6 0 0 0))))))
+      (let ((res (exec-prepared-command stm '((:date 2003 3 4)))))
+        (assert (equal res '((:date 2003 3 6 0 0 0))))))
     (let ((res (exec-query con "
       select to_date('8.6.2005','dd.mm.yyyy') -1.0 / (86400-1) from dual")))
-      (assert (equal res '(((2005 6 7 23 59 59))))))))
+      (assert (equal res '(((:date 2005 6 7 23 59 59))))))))
 
 
 (defun ora-test7 (con)
