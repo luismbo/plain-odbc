@@ -26,7 +26,6 @@
                         :pathname "src/odbc/"
                         :components 
                          ((:file "plain-odbc-package")
-                          ;(:file "local"        )
                           (:file "odbc-constants")
                           (:file "global")
                           (:file "odbc-ff-interface")
