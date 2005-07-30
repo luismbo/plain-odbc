@@ -16,6 +16,7 @@
 
 (defvar *lob-fetch-buffer-size* 100000)
 
+
 (defvar *max-column-buffer-size* 8001)
 
 (defvar *default-string-parameter-size* 8001)
