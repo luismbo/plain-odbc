@@ -225,9 +225,9 @@
           (when column
             (with-slots (value-ptr ind-ptr) column
               (when value-ptr
-                (%dispose-ptr value-ptr))
+                (uffi:free-foreign-object value-ptr))
               (when ind-ptr
-                (%dispose-ptr ind-ptr))))))
+                (uffi:free-foreign-object ind-ptr))))))
       (setf (slot-value query 'columns) nil)
       (when hstmt
         (%free-statement hstmt :unbind)))))
@@ -457,12 +457,12 @@
 ;; this functions works only, since we store at 
 ;; value-ptr the position of the parameter
 (defun sql-param-data-position (hstmt)  
-  (%with-temporary-allocation 
-      ((ptr :ptr))
-  (let ((res (with-error-handling (:hstmt hstmt) (%sql-param-data hstmt ptr))))
-    (values res (if (= res $SQL_NEED_DATA) 
-                  (%get-long (%get-ptr ptr)))))))
- 
+  (with-temporary-allocations 
+      ((ptr (uffi:allocate-foreign-object '(* :long))))
+    (let ((res (with-error-handling (:hstmt hstmt) (%sql-param-data hstmt ptr))))
+      (values res (if (= res $SQL_NEED_DATA) 
+                    (uffi:deref-pointer (uffi:deref-pointer ptr '(* :long)) :long  ))))))
+
 (defmethod exec-prepared-query ((query prepared-statement) parameters)
   (let ((hstmt (hstmt query)))
     (unwind-protect 

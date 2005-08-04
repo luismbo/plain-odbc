@@ -71,8 +71,8 @@
         (when (slot-value column 'bound)
           (with-slots (buffer-length value-ptr ind-ptr c-type)
               column
-            (setf value-ptr (%new-ptr :long buffer-length))
-            (setf ind-ptr (%new-ptr :long))
+            ;(setf value-ptr (uffi:allocate-foreign-object :long buffer-length))
+            (setf ind-ptr (uffi:allocate-foreign-object :long))
             (%bind-column hstmt 
                           pos
                           c-type
@@ -103,10 +103,12 @@
                          name))
                      (slot-value column 'column-size)
                      *max-precision*)
-              (1+ (slot-value column 'column-size))))))
+              (1+ (slot-value column 'column-size)))))
+  (setf (slot-value column 'value-ptr) 
+          (uffi:allocate-foreign-object :char (slot-value column 'buffer-length))))
 
 (defmethod get-column-value ((column string-column))
-  (let ((len (%get-long (slot-value column 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA)
       nil
       (progn
@@ -135,10 +137,12 @@
                          name))
                      (slot-value column 'column-size)
                      *max-precision*)
-              (* 2 (1+ (slot-value column 'column-size)))))))
+              (* 2 (1+ (slot-value column 'column-size))))))
+  (setf (slot-value column 'value-ptr) 
+          (uffi:allocate-foreign-object :unsigned-byte (slot-value column 'buffer-length))))
 
 (defmethod get-column-value ((column unicode-string-column))
-  (let ((len (%get-long (slot-value column 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     ;; len is size in bytes, not characters!
     (if (= len $SQL_NULL_DATA)
       nil
@@ -157,14 +161,16 @@
 (defmethod initialize-column ((column integer-column) args)
   (declare (ignore args))
   (setf (slot-value column 'c-type) $SQL_C_SLONG)
-  (setf (slot-value column 'buffer-length) 8))
+  (setf (slot-value column 'buffer-length) 8)
+  (setf  (slot-value column 'value-ptr) 
+          (uffi:allocate-foreign-object :long)))
 
 
 (defmethod get-column-value ((column integer-column))
-  (let ((len (%get-long (slot-value column 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA)
       nil
-      (%get-long (slot-value column 'value-ptr)))))
+      (uffi:deref-pointer (slot-value column 'value-ptr) :long))))
 
 
 ;;;--------------------
@@ -177,16 +183,17 @@
   (declare (ignore args))
   (setf (slot-value column 'c-type) $SQL_C_DOUBLE)
   ;; fixme: set buffersize in a more generic way
-  (setf (slot-value column 'buffer-length) 8))
+  (setf (slot-value column 'buffer-length) 8)
+  (setf (slot-value column 'value-ptr) (uffi:allocate-foreign-object :double)))
 
 (defmethod get-column-value ((column double-column))
   ;(%get-long (slot-value column 'ind-ptr))
   ;(%get-double-float (slot-value column 'value-ptr))
-   (let ((len (%get-long (slot-value column 'ind-ptr))))
+   (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
      (if (= len $SQL_NULL_DATA)
        nil
        (progn
-         (%get-double-float (slot-value column 'value-ptr))))))
+         (uffi:deref-pointer (slot-value column 'value-ptr) :double)))))
 
 ;;;------------------------
 ;;; date column
@@ -197,10 +204,11 @@
   (declare (ignore args)) 
   (setf (slot-value column 'c-type) $SQL_C_TIMESTAMP)
   ;; fixme: really 32?
-  (setf (slot-value column 'buffer-length) 32))
+  (setf (slot-value column 'buffer-length) 32)
+  (setf (slot-value column 'value-ptr) (uffi:allocate-foreign-object :byte 32)))
 
 (defmethod get-column-value ((column date-column))
-   (let ((len (%get-long (slot-value column 'ind-ptr))))
+   (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA)
       nil
       (funcall *universal-time-to-date-dataype*
@@ -215,15 +223,19 @@
 (defmethod initialize-column ((column binary-column) args)
   (declare (ignore args))
   (setf (slot-value column 'c-type) $SQL_C_BINARY)
-    (setf (slot-value column 'buffer-length) 
+  (setf (slot-value column 'buffer-length) 
           (if (zerop (slot-value column 'column-size))
             *max-precision*
             (if (> (slot-value column 'column-size) *max-precision*)
               (error "column ~A is to large" (slot-value column 'column-size))
-              (slot-value column 'column-size)))))
+              (slot-value column 'column-size))))
+  (setf (slot-value column 'value-ptr)
+          (uffi:allocate-foreign-object :byte 
+                                        (slot-value column 'buffer-length))))
+
 
 (defmethod get-column-value ((column binary-column))
-  (let ((len (%get-long (slot-value column 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA) 
       nil
       (%get-binary (slot-value column 'value-ptr) len))))
@@ -238,10 +250,11 @@
   (setf (slot-value column 'c-type) $SQL_C_CHAR)
   ;; bigint is 64 bit, 2^64 has 20 digits, additional 1 sign =21 chars, 
   ;; say 25 for safety
-  (setf (slot-value column 'buffer-length) 25))
+  (setf (slot-value column 'buffer-length) 25)
+  (setf (slot-value column 'value-ptr) (uffi:allocate-foreign-object :byte 25)))
 
 (defmethod get-column-value ((column bigint-column))
-  (let ((len (%get-long (slot-value column 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA) 
       nil
       (parse-integer (%get-string (slot-value column 'value-ptr) len)))))
@@ -278,7 +291,7 @@
 
 #+ignore
 (defmethod get-column-value ((column decimal-column))
-  (let ((len (%get-long (slot-value column 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA) 
       nil
       (%get-string (slot-value column 'value-ptr) len))))
@@ -294,7 +307,7 @@
   (setf (slot-value column 'buffer-length) 50))
 
 (defmethod get-column-value ((column decimal-column))
-  (let ((len (%get-long (slot-value column 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA) 
       nil
       (let ((bytes (%get-binary (slot-value column 'value-ptr) len))
@@ -320,8 +333,9 @@
   (setf (slot-value column 'buffer-length) *max-precision*))
 
 (defmethod get-column-value ((column clob-column))
-  (let* ((value-ptr (%new-ptr :char (slot-value column 'buffer-length)))
-         (ind-ptr (%new-ptr :long)))
+  (let* ((value-ptr (uffi:allocate-foreign-object :char 
+                                                  (slot-value column 'buffer-length)))
+         (ind-ptr (uffi:allocate-foreign-object :long)))
     (unwind-protect
       (get-character-data 
        (slot-value column 'hstmt)
@@ -329,8 +343,8 @@
        value-ptr 
        (slot-value column 'buffer-length)
        ind-ptr)
-      (%dispose-ptr value-ptr)
-      (%dispose-ptr ind-ptr))))
+      (uffi:free-foreign-object value-ptr)
+      (uffi:free-foreign-object ind-ptr))))
 
 ;;;-----------------------------
 ;;; uclob column
@@ -344,8 +358,8 @@
   (setf (slot-value column 'buffer-length) *max-precision*))
 
 (defmethod get-column-value ((column uclob-column))
-  (let* ((value-ptr (%new-ptr :char (slot-value column 'buffer-length)))
-         (ind-ptr (%new-ptr :long)))
+  (let* ((value-ptr (uffi:allocate-foreign-object :char (slot-value column 'buffer-length)))
+         (ind-ptr (uffi:allocate-foreign-object :long)))
     (unwind-protect
       (get-unicode-character-data 
        (slot-value column 'hstmt)
@@ -353,8 +367,8 @@
        value-ptr 
        (slot-value column 'buffer-length)
        ind-ptr)
-      (%dispose-ptr value-ptr)
-      (%dispose-ptr ind-ptr))))
+      (uffi:free-foreign-object value-ptr)
+      (uffi:free-foreign-object ind-ptr))))
         
 ;;;-----------------------------
 ;;; blob column
@@ -368,8 +382,8 @@
   (setf (slot-value column 'buffer-length) *max-precision*))
 
 (defmethod get-column-value ((column blob-column))
-  (let* ((value-ptr (%new-ptr :char (slot-value column 'buffer-length)))
-         (ind-ptr (%new-ptr :long)))
+  (let* ((value-ptr (uffi:allocate-foreign-object  :byte (slot-value column 'buffer-length)))
+         (ind-ptr (uffi:allocate-foreign-object :long)))
     (unwind-protect
       (get-binary-data 
        (slot-value column 'hstmt)
@@ -377,8 +391,8 @@
        value-ptr 
        (slot-value column 'buffer-length)
        ind-ptr)
-      (%dispose-ptr value-ptr)
-      (%dispose-ptr ind-ptr))))
+      (uffi:free-foreign-object value-ptr)
+      (uffi:free-foreign-object ind-ptr))))
 
 ;;-------------------------------
 ;;  fetch data via SQlGetData
@@ -403,7 +417,7 @@
                                       buffer-length
                                       ind-ptr)))
       (handle-error sqlret)
-      (let ((len (%get-long ind-ptr)))
+      (let ((len (uffi:deref-pointer ind-ptr :long)))
         ;(break)
         (cond 
           ((= len $sql_null_data) nil)
@@ -419,7 +433,7 @@
             (let ((sos (make-string-output-stream)))
               (loop
                 (if (and (= sqlret $SQL_SUCCESS_WITH_INFO)
-                         (equal (sql-state (%null-ptr) (%null-ptr) hstmt)
+                         (equal (sql-state nil nil hstmt)
                                 "01004"))
                   ;; an 0 byte is append to a string, ignore that
                   
@@ -434,7 +448,7 @@
                     (handle-error sqlret))
                   (return)))
               ;; fetch the last part of the data
-          (setf len (%get-long ind-ptr))
+          (setf len (uffi:deref-pointer ind-ptr :long))
           (let ((str (%get-string value-ptr len)))
             (write-string str sos))
           (get-output-stream-string sos))))))))
@@ -461,7 +475,7 @@
                                       buffer-length
                                       ind-ptr)))
       (handle-error sqlret)
-      (let ((len (%get-long ind-ptr)))
+      (let ((len (uffi:deref-pointer ind-ptr :long)))
         (cond 
           ((= len $sql_null_data) nil)
           ;; character data has a 0 byte appended, the length does not include it
@@ -476,7 +490,7 @@
             (let ((sos (make-string-output-stream)))
               (loop
                 (if (and (= sqlret $SQL_SUCCESS_WITH_INFO)
-                         (equal (sql-state (%null-ptr) (%null-ptr) hstmt)
+                         (equal (sql-state nil nil hstmt)
                                 "01004"))
                   ;; an 0 byte is append to a string, ignore that
                   
@@ -491,7 +505,7 @@
                     (handle-error sqlret))
                   (return)))
               ;; fetch the last part of the data
-          (setf len (%get-long ind-ptr))
+          (setf len (uffi:deref-pointer ind-ptr :long))
           (let ((str (%get-unicode-string value-ptr len)))
             (write-string str sos))
           (get-output-stream-string sos))))))))
@@ -517,14 +531,14 @@
                                     buffer-length
                                     ind-ptr)))
     (handle-error sqlret)
-    (let ((len (%get-long ind-ptr)))
+    (let ((len (uffi:deref-pointer ind-ptr :long)))
       (if (= len $sql_null_data)
         nil
         (let ((res (make-array 0 :element-type '(unsigned-byte 8) :adjustable t))
               (res-len 0))
           (loop
             (if (and (= sqlret $SQL_SUCCESS_WITH_INFO)
-                     (equal (sql-state (%null-ptr) (%null-ptr) hstmt)
+                     (equal (sql-state nil nil hstmt)
                           "01004"))
             
             (let ((vec (%get-binary value-ptr buffer-length)))
@@ -540,7 +554,7 @@
               (handle-error sqlret))
             (return)))
         
-        (setf len (%get-long ind-ptr))
+        (setf len (uffi:deref-pointer ind-ptr :long))
         (let ((vec (%get-binary value-ptr len)))
           (setf res (adjust-array res (+ res-len len)))
           (setf (subseq res res-len (+ res-len len)) vec))

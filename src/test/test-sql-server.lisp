@@ -125,7 +125,7 @@ CREATE TABLE [type_test] (
                                 '((:blob :in) (:clob :in) (:clob :in)))))
     (exec-prepared-update stm 
                           (list 
-                           (make-array 10000 :element-type '(unsigned-byte 8) :initial-element 33)
+                           (make-array 100000 :element-type '(unsigned-byte 8) :initial-element 33)
                            (make-string 100001 :initial-element #\o)
                            (make-string 100001 :initial-element #\o)
                            )))

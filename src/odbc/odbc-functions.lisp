@@ -13,6 +13,15 @@
 
 (in-package :plain-odbc)
 
+(defmacro with-temporary-allocations (allocs &body body)
+  `(let (,@allocs)
+    (unwind-protect
+      (progn ,@body)
+      ,@(mapcar (lambda (alloc) (list 'uffi:free-foreign-object (first alloc))) allocs))))
+
+             
+
+
 ;;; rav:
 ;;; primitive error handling
 ;;; maybe one could create sub conditions based on the sql-state?
@@ -35,32 +44,36 @@
   ())
 
 (defun handle-error (henv hdbc hstmt)
-  (%with-temporary-allocation ((sql-state :string 256)
-			       (error-message :string
-					      #.$SQL_MAX_MESSAGE_LENGTH)
-			       (error-code :long)
-			       (msg-length :short))
-    (SQLError henv hdbc hstmt sql-state
-              error-code error-message
-	      $SQL_MAX_MESSAGE_LENGTH msg-length)
-    (values
-     (%get-cstring error-message)
-     (%get-cstring sql-state)
-     (%get-word msg-length)
-     (%get-long error-code))))
+   (with-temporary-allocations
+       ((sql-state (uffi:allocate-foreign-string 256))
+        (error-message (uffi:allocate-foreign-string #.$SQL_MAX_MESSAGE_LENGTH))
+        (error-code (allocate-foreign-object :long))
+        (msg-length (allocate-foreign-object :short)))
+     (SQLError henv hdbc hstmt sql-state
+               error-code error-message
+               $SQL_MAX_MESSAGE_LENGTH msg-length)
+     (values
+      (uffi:convert-from-foreign-string error-message)
+      (uffi:convert-from-foreign-string sql-state)
+      (uffi:deref-pointer msg-length :short)
+      (uffi:deref-pointer error-code :long))))
+
+       
 
 
 ; test this: return a keyword for efficiency
 ;; rav,
 ;; problem: calling SQLError clears the error state
+;#+ignore
 (defun sql-state (henv hdbc hstmt)
-  (%with-temporary-allocation ((sql-state :string 256)
-			       (error-message :string $SQL_MAX_MESSAGE_LENGTH)
-			       (error-code :long)
-			       (msg-length :short))
+  (with-temporary-allocations 
+      ((sql-state (uffi:allocate-foreign-string 256))
+       (error-message (uffi:allocate-foreign-string $SQL_MAX_MESSAGE_LENGTH))
+       (error-code (uffi:allocate-foreign-object :long))
+       (msg-length (uffi:allocate-foreign-object :short)))
     (SQLError henv hdbc hstmt sql-state error-code
-	      error-message $SQL_MAX_MESSAGE_LENGTH msg-length)
-    (%get-cstring sql-state) ;(%cstring-to-keyword sql-state)
+              error-message $SQL_MAX_MESSAGE_LENGTH msg-length)
+    (%get-string sql-state 5) ;(%cstring-to-keyword sql-state)
     ))
 
 ;;; rav:
@@ -150,11 +163,11 @@
 
 
 (defun %new-environment-handle ()
-  (%with-sql-pointer (phenv) 
+  (uffi:with-foreign-object (phenv '(* sql-handle)) 
     (with-error-handling
       ()
       (SQLAllocEnv phenv)
-      (%get-ptr phenv))))
+      (uffi:deref-pointer phenv 'sql-handle))))
 
 (defun %sql-free-environment (henv)
   (with-error-handling 
@@ -162,11 +175,11 @@
     (SQLFreeEnv henv)))
 
 (defun %new-db-connection-handle (henv)
-  (%with-sql-pointer (phdbc) 
+  (uffi:with-foreign-object (phdbc '(* sql-handle))  
     (with-error-handling
-      (:henv henv)
+        (:henv henv)
       (SQLAllocConnect henv phdbc)
-      (%get-ptr phdbc))))
+      (deref-pointer phdbc 'sql-handle))))
 
 (defun %free-statement (hstmt option)
   (with-error-handling 
@@ -201,14 +214,15 @@
 
 ;; functional interface
 
+;;; fixme , with c-string?
 (defun %sql-connect (hdbc server uid pwd)
-  (with-cstr (server-ptr server)
-    (with-cstr (uid-ptr uid)
-      (with-cstr (pwd-ptr pwd)
-        (with-error-handling 
-          (:hdbc hdbc)
-          (SQLConnect hdbc server-ptr $SQL_NTS uid-ptr 
-                      $SQL_NTS pwd-ptr $SQL_NTS))))))
+  (let ((server-ptr server)
+        (uid-ptr uid)
+        (pwd-ptr pwd))
+    (with-error-handling 
+        (:hdbc hdbc)
+      (SQLConnect hdbc server-ptr $SQL_NTS uid-ptr 
+                  $SQL_NTS pwd-ptr $SQL_NTS))))
 
 ;;
 (defun %sql-driver-connect (henv hdbc connection-string completion-option)
@@ -218,17 +232,17 @@
            (:required $SQL_DRIVER_COMPLETE_REQUIRED)
            (:prompt $SQL_DRIVER_PROMPT)
            (:noprompt $SQL_DRIVER_NOPROMPT))))
-    (with-cstr (connection-str-ptr connection-string)
-      (%with-temporary-allocation
-        ((complete-connection-str-ptr :string 1024)
-         (length-ptr :short))
+    (let ((connection-str-ptr connection-string))
+      (with-temporary-allocations
+          ((complete-connection-str-ptr (uffi:allocate-foreign-string 1024))
+           (length-ptr (uffi:allocate-foreign-object :short)))
         (with-error-handling 
           (:henv henv :hdbc hdbc)
           (SQLDriverConnect hdbc (%null-ptr) ; no window
                             connection-str-ptr $SQL_NTS
                             complete-connection-str-ptr 1024
                             length-ptr completion-option))
-        (%get-cstring complete-connection-str-ptr)))))
+        (uffi:convert-from-foreign-string complete-connection-str-ptr)))))
 
 (defun %disconnect (hdbc)
   (with-error-handling 
@@ -279,11 +293,12 @@
       (SQLFetch hstmt)))
 
 (defun %new-statement-handle (hdbc)
-  (%with-sql-pointer (hstmt-ptr) 
+  (with-temporary-allocations 
+      ((hstmt-ptr (uffi:allocate-foreign-object 'sql-handle)))
     (with-error-handling 
-      (:hdbc hdbc)
+        (:hdbc hdbc)
       (SQLAllocStmt hdbc hstmt-ptr) 
-      (%get-ptr hstmt-ptr))))
+      (uffi:deref-pointer hstmt-ptr 'sql-handle))))
 
 (defun %sql-get-info (hdbc info-type)
   (ecase info-type
@@ -321,15 +336,16 @@
       #.$SQL_SPECIAL_CHARACTERS
       #.$SQL_TABLE_TERM
       #.$SQL_USER_NAME)
-     (%with-temporary-allocation ((info-ptr :string 1024)
-				  (info-length-ptr :short))
+     (with-temporary-allocations 
+         ((info-ptr (uffi:allocate-foreign-string 1024))
+          (info-length-ptr (uffi:allocate-foreign-object :short)))
        (with-error-handling 
          (:hdbc hdbc)
 	 #-pcl
          (SQLGetInfo hdbc info-type info-ptr 1023 info-length-ptr)
 	 #+pcl
          (SQLGetInfo-Str hdbc info-type info-ptr 1023 info-length-ptr)
-         (%get-cstring info-ptr))))
+         (uffi:convert-from-foreign-string info-ptr))))
     ;; those returning a word
     ((#.$SQL_ACTIVE_CONNECTIONS
       #.$SQL_ACTIVE_STATEMENTS
@@ -358,8 +374,9 @@
       #.$SQL_QUALIFIER_LOCATION
       #.$SQL_QUOTED_IDENTIFIER_CASE
       #.$SQL_TXN_CAPABLE)
-     (%with-temporary-allocation ((info-ptr :short)
-				  (info-length-ptr :short))
+     (with-temporary-allocations
+         ((info-ptr (uffi::allocate-foreign-object :short))
+          (info-length-ptr (uffi::allocate-foreign-object :short)))
        (with-error-handling 
 	(:hdbc hdbc)
          (SQLGetInfo hdbc
@@ -367,7 +384,7 @@
 		     info-ptr
 		     255
 		     info-length-ptr)
-         (%get-word info-ptr)))
+         (uffi:deref-pointer info-ptr :short)))
      )
     ;; those returning a long bitmask
     ((#.$SQL_ALTER_TABLE 
@@ -415,8 +432,9 @@
       #.$SQL_TIMEDATE_FUNCTIONS
       #.$SQL_TXN_ISOLATION_OPTION
       #.$SQL_UNION)
-     (%with-temporary-allocation ((info-ptr :long)
-                                  (info-length-ptr :short))
+      (with-temporary-allocations 
+          ((info-ptr (uffi:allocate-foreign-object :unsigned-long))
+           (info-length-ptr (uffi:allocate-foreign-object :short)))
        (with-error-handling 
          (:hdbc hdbc)
          (SQLGetInfo hdbc
@@ -424,7 +442,7 @@
 		     info-ptr
 		     255
 		     info-length-ptr)
-         (%get-unsigned-long info-ptr)))
+         (uffi:deref-pointer info-ptr :unsigned-long)))
      )
     ;; those returning a long integer
     ((#.$SQL_DEFAULT_TXN_ISOLATION
@@ -438,15 +456,16 @@
       #.$SQL_MAX_CHAR_LITERAL_LEN
       #.$SQL_ACTIVE_ENVIRONMENTS
       )
-     (%with-temporary-allocation ((info-ptr :long)
-                                  (info-length-ptr :short))
+     (with-temporary-allocations 
+         ((info-ptr (uffi:allocate-foreign-object :long))
+          (info-length-ptr (uffi:allocate-foreign-object :short)))
        (with-error-handling 
          (:hdbc hdbc)
          (SQLGetInfo hdbc info-type info-ptr 255 info-length-ptr)
-         (%get-unsigned-long info-ptr))))))
+         (uffi:deref-pointer info-ptr :unsigned-long))))))
 
 (defun %sql-exec-direct (sql hstmt henv hdbc)
-  (with-cstr (sql-ptr sql)
+  (let ((sql-ptr sql))
     (with-error-handling
       (:hstmt hstmt :henv henv :hdbc hdbc)
       ;(break)
@@ -463,45 +482,51 @@
     (SQLExecute hstmt)))
 
 (defun result-columns-count (hstmt)
-  (%with-temporary-allocation ((columns-nr-ptr :short))
+  (with-temporary-allocations 
+      ((columns-nr-ptr (uffi:allocate-foreign-object :short)))
     (with-error-handling (:hstmt hstmt)
                          (SQLNumResultCols hstmt columns-nr-ptr)
-      (%get-word columns-nr-ptr))))
+      (uffi:deref-pointer columns-nr-ptr :word))))
 
 (defun result-rows-count (hstmt)
-  (%with-temporary-allocation ((row-count-ptr :long))
+  (with-temporary-allocations 
+      ((row-count-ptr (uffi:allocate-foreign-object :long)))
     (with-error-handling (:hstmt hstmt)
                          (SQLRowCount hstmt row-count-ptr)
-      (%get-long row-count-ptr))))
+      (uffi:deref-pointer row-count-ptr :long))))
+
+
+;;; fixme, the whole column descriptiopn stuff should be put into one loop
+;;; so that we can reuse the allocations
 
 ;; Column counting is 1-based
 (defun %describe-column (hstmt column-nr)
-  (%with-temporary-allocation ((column-name-ptr :string 256)
-                               (column-name-length-ptr :short)
-                               (column-sql-type-ptr :short)
-                               (column-precision-ptr :long)
-                               (column-scale-ptr :short)
-                               (column-nullable-p-ptr :short))
+  (with-temporary-allocations ((column-name-ptr (uffi:allocate-foreign-string 256))
+                               (column-name-length-ptr (uffi:allocate-foreign-object :short))
+                               (column-sql-type-ptr (uffi:allocate-foreign-object :short))
+                               (column-precision-ptr (uffi:allocate-foreign-object :long))
+                               (column-scale-ptr (uffi:allocate-foreign-object :short))
+                               (column-nullable-p-ptr (uffi:allocate-foreign-object :short)))
     (with-error-handling (:hstmt hstmt)
                          (SQLDescribeCol hstmt column-nr column-name-ptr 256
                                          column-name-length-ptr
-					 column-sql-type-ptr
+                                         column-sql-type-ptr
                                          column-precision-ptr
-					 column-scale-ptr
+                                         column-scale-ptr
                                          column-nullable-p-ptr)
       (values
-       (%get-cstring column-name-ptr)
-       (%get-signed-word column-sql-type-ptr)
-       (%get-unsigned-long column-precision-ptr)
-       (%get-signed-word column-scale-ptr)
-       (%get-signed-word column-nullable-p-ptr)))))
+       (uffi:convert-from-foreign-string column-name-ptr)
+       (uffi:deref-pointer column-sql-type-ptr :short)
+       (uffi:deref-pointer column-precision-ptr :unsigned-long)
+       (uffi:deref-pointer column-scale-ptr :short)
+       (uffi:deref-pointer column-nullable-p-ptr :short)))))
 
 ;; parameter counting is 1-based
 (defun %describe-parameter (hstmt parameter-nr)
-  (%with-temporary-allocation ((column-sql-type-ptr :short)
-                               (column-precision-ptr :long)
-                               (column-scale-ptr :short)
-                               (column-nullable-p-ptr :short))
+  (with-temporary-allocations ((column-sql-type-ptr (uffi:allocate-foreign-object :short))
+                               (column-precision-ptr (uffi:allocate-foreign-object :long))
+                               (column-scale-ptr (uffi:allocate-foreign-object :short))
+                               (column-nullable-p-ptr (uffi:allocate-foreign-object :short)))
     (with-error-handling 
       (:hstmt hstmt)
       (SQLDescribeParam hstmt parameter-nr
@@ -510,27 +535,31 @@
 			column-scale-ptr
                         column-nullable-p-ptr)
       (values
-       (%get-signed-word column-sql-type-ptr)
-       (%get-unsigned-long column-precision-ptr)
-       (%get-signed-word column-scale-ptr)
-       (%get-signed-word column-nullable-p-ptr)))))
+       (uffi:deref-pointer column-sql-type-ptr :short)
+       (uffi:deref-pointer column-precision-ptr :unsigned-long)
+       (uffi:deref-pointer column-scale-ptr :short)
+       (uffi:deref-pointer column-nullable-p-ptr :short)))))
 
 (defun %column-attributes (hstmt column-nr descriptor-type)
-  (%with-temporary-allocation ((descriptor-info-ptr :string 256)
-                               (descriptor-length-ptr :short)
-                               (numeric-descriptor-ptr :long))
+  (with-temporary-allocations 
+      ((descriptor-info-ptr (uffi:allocate-foreign-string  256))
+       (descriptor-length-ptr (uffi:allocate-foreign-object :short))
+       (numeric-descriptor-ptr (uffi:allocate-foreign-object :long)))
     (with-error-handling
       (:hstmt hstmt) 
       (SQLColAttributes hstmt column-nr descriptor-type descriptor-info-ptr 256
                         descriptor-length-ptr
 			numeric-descriptor-ptr)
       (values
-       (%get-cstring descriptor-info-ptr)
-       (%get-signed-long numeric-descriptor-ptr)))))
+       (uffi:convert-from-foreign-string descriptor-info-ptr)
+       (uffi:deref-pointer numeric-descriptor-ptr :long)))))
 
+
+;; fixme, include it later
+#+ignore
 (defun %prepare-describe-columns (hstmt table-qualifier table-owner 
                                    table-name column-name)
-  (with-cstr (table-qualifier-ptr table-qualifier)
+  (with-tempo (table-qualifier-ptr table-qualifier)
     (with-cstr (table-owner-ptr table-owner) 
       (with-cstr (table-name-ptr table-name)
         (with-cstr (column-name-ptr column-name)
@@ -555,17 +584,17 @@
     (fetch-all-rows hstmt)))
 
 (defun %sql-data-sources (henv &key (direction :first))
-  (%with-temporary-allocation 
-   ((name-ptr :string (1+ $SQL_MAX_DSN_LENGTH))
-    (name-length-ptr :short)
-    (description-ptr :string 1024)
-    (description-length-ptr :short))
+  (with-temporary-allocations 
+      ((name-ptr (uffi:allocate-foreign-string (1+ $SQL_MAX_DSN_LENGTH)))
+       (name-length-ptr (uffi:allocate-foreign-object :short))
+       (description-ptr (uffi:allocate-foreign-string 1024))
+       (description-length-ptr (uffi:allocate-foreign-object :short)))
     (let ((res (with-error-handling
-                 (:henv henv)
+                   (:henv henv)
                  (SQLDataSources henv
                                  (ecase direction
-				   (:first $SQL_FETCH_FIRST)
-				   (:next $SQL_FETCH_NEXT))
+                                   (:first $SQL_FETCH_FIRST)
+                                   (:next $SQL_FETCH_NEXT))
                                  name-ptr
                                  (1+ $SQL_MAX_DSN_LENGTH)
                                  name-length-ptr
@@ -573,21 +602,22 @@
                                  1024
                                  description-length-ptr))))
       (unless (= res $SQL_NO_DATA_FOUND)
-        (values (%get-cstring name-ptr)
-                (%get-cstring description-ptr))))))
+        (values (uffi:convert-from-foreign-string name-ptr)
+                (uffi:convert-from-foreign-string description-ptr))))))
 
 
 (defun %sql-prepare (hstmt sql)
-  (with-cstr (sql-ptr sql)
+  (let ((sql-ptr sql))
     (with-error-handling (:hstmt hstmt)
       (SQLPrepare hstmt sql-ptr $SQL_NTS))))
 
 ;; depending on option, we return a long int or a string; string not implemented
 (defun get-connection-option (hdbc option)
-  (%with-temporary-allocation ((param-ptr :long #+ignore #.(1+ $SQL_MAX_OPTION_STRING_LENGTH)))
+  (with-temporary-allocations 
+      ((param-ptr (allocate-foreign-object  :long))) ;#+ignore #.(1+ $SQL_MAX_OPTION_STRING_LENGTH)))
     (with-error-handling (:hdbc hdbc)
-                         (SQLGetConnectOption hdbc option param-ptr)
-      (%get-long param-ptr))))
+      (SQLGetConnectOption hdbc option param-ptr)
+      (uffi:deref-pointer param-ptr :long))))
 
 (defun set-connection-option (hdbc option param)
   (with-error-handling (:hdbc hdbc)
@@ -610,7 +640,7 @@
 
 (defun set-connection-attr-string (hdbc option val)
   (with-error-handling (:hdbc hdbc)
-    (with-cstr (ptr val)
+    (let ((ptr val))
       (SQLSetConnectAttr_string hdbc option ptr (length val)))))
 
 (defun %start-connection-trace (hdbc filename)
@@ -622,16 +652,21 @@
   
 
 (defun get-connection-attr-integer (hdbc attr)
-  (%with-temporary-allocation ((ptr :long) (lenptr :long))
+  (with-temporary-allocations
+      ((ptr (uffi:allocate-foreign-object :long))
+       (lenptr (uffi:allocate-foreign-object :long)))
     (with-error-handling (:hdbc hdbc)
       (SQLGetConnectAttr hdbc attr ptr 0 lenptr))
-    (%get-long ptr)))
+    (uffi:deref-pointer ptr :long)))
 
 (defun get-connection-attr-string (hdbc attr)
-  (%with-temporary-allocation ((ptr :string 256) (lenptr :long))
+  (with-temporary-allocations 
+      ((ptr (uffi:allocate-foreign-string 256))
+       (lenptr (uffi:allocate-foreign-object :long)))
     (with-error-handling (:hdbc hdbc)
       (SQLGetConnectAttr hdbc attr ptr 256 lenptr))
-    (%get-string ptr (%get-long lenptr))))
+    (uffi:convert-from-foreign-string ptr 
+                                      :length (uffi:deref-pointer lenptr :long))))
 
 ;;; small test for the get-connection-attr
 (defun %get-current-catalog (hdbc)
@@ -657,13 +692,14 @@
     (SQLSetPos hstmt row option lock)))
 
 (defun %sql-extended-fetch (hstmt fetch-type row)
-  (%with-temporary-allocation ((row-count-ptr :unsigned-long)
-                               (row-status-ptr :short))
+  (with-temporary-allocations 
+      ((row-count-ptr (uffi:allocate-foreign-object :unsigned-long))
+       (row-status-ptr (uffi:allocate-foreign-object :short)))
     (with-error-handling (:hstmt hstmt)
       (SQLExtendedFetch hstmt fetch-type row row-count-ptr
 			row-status-ptr)
-      (values (%get-unsigned-long row-count-ptr)
-              (%get-word row-status-ptr)))))
+      (values (uffi:deref-pointer row-count-ptr :unsigned-long)
+              (uffi:deref-pointer row-status-ptr :word)))))
 
 ; column-nr is zero-based
 (defun %sql-get-data (hstmt column-nr c-type data-ptr precision out-len-ptr)
@@ -696,236 +732,3 @@
       (otherwise (error-handling-fun res nil nil hstmt)))))
 
 ;(defconstant $sql-data-truncated (intern "01004" :keyword))
-
-;;; the  rest is not used?
-
-(defun timestamp-to-universal-time (ptr)
-  (values
-   (encode-universal-time 
-    (foreign-slot ptr sql-c-timestamp second)
-    (foreign-slot ptr sql-c-timestamp minute)
-    (foreign-slot ptr sql-c-timestamp hour)
-    (foreign-slot ptr sql-c-timestamp day)
-    (foreign-slot ptr sql-c-timestamp month)
-    (foreign-slot ptr sql-c-timestamp year))
-   (foreign-slot ptr sql-c-timestamp fraction)))
-
-
-(defun date-to-universal-time (ptr)
-  (encode-universal-time
-   0 0 0
-   (foreign-slot ptr sql-c-date day) 
-   (foreign-slot ptr sql-c-date month)
-   (foreign-slot ptr sql-c-date year)))
-
-
-(defun time-to-universal-time (ptr)
-  (values
-   (encode-universal-time 
-    (foreign-slot ptr sql-c-time second)
-    (foreign-slot ptr sql-c-time minute)
-    (foreign-slot ptr sql-c-time hour)
-    ;;RAV, changed to 1 1 1900 for all lisps
-    ;#-pcl 0 #-pcl 0 #-pcl 0
-    ;#+pcl 1 #+pcl 1 #+pcl 1900
-          1       1     1900   )
-   (foreign-slot ptr sql-c-timestamp fraction)))
-
-#||
-#+mcl
-(defmacro fslot-value (ptr type slot)
-  (let ((slot-accessor
-         (intern (concatenate 'string 
-                              (string type)
-                              "."
-                              (string slot)))))
-  `(rref ptr ,slot-accessor)))
-
-(macroexpand '(fslot-value ptr sql-c-timestamp second))
-
-#+lispworks
-(defmacro foreign-slot (ptr type slot)
-  (declare (ignore type))
-  `(fli:foreign-slot-value ,ptr ',slot))
-
-#+pcl
-(defmacro foreign-slot (ptr type slot)
-  (declare (ignore type))
-  `(alien:slot ,ptr ',slot))
-
-#+allegro
-(defmacro fslot-value (ptr type slot)
-  `(ff:fslot-value-typed ',type ,ptr ',slot))
-
-#+cormanlisp
-(defmacro fslot-value (ptr type slot)
-  `(ct:cref ,type ,ptr ,slot))
-
-#+mcl
-(defun timestamp-to-universal-time (ptr)
-  (values
-   (encode-universal-time 
-    (rref ptr sql-c-timestamp.second)
-    (rref ptr sql-c-timestamp.minute)
-    (rref ptr sql-c-timestamp.hour)
-    (rref ptr sql-c-timestamp.day)
-    (rref ptr sql-c-timestamp.month)
-    (rref ptr sql-c-timestamp.year))
-   (rref ptr sql-c-timestamp.fraction)))
-
-#+mcl
-(defun date-to-universal-time (ptr)
-  (encode-universal-time
-   0 0 0
-   (rref ptr sql-c-date.day)
-   (rref ptr sql-c-date.month)
-   (rref ptr sql-c-date.year)))
-
-#+mcl
-(defun time-to-universal-time (ptr)
-  (encode-universal-time 
-   (rref ptr sql-c-time.second)
-   (rref ptr sql-c-time.minute)
-   (rref ptr sql-c-time.hour)
-   #-pcl 0 #-pcl 0 #-pcl 0
-   #+pcl 1 #+pcl 1 #+pcl 1900))
-
-#+lispworks
-(defun timestamp-to-universal-time (ptr)
-  (values
-   (encode-universal-time 
-    (fli:foreign-slot-value ptr 'second)
-    (fli:foreign-slot-value ptr 'minute)
-    (fli:foreign-slot-value ptr 'hour)
-    (fli:foreign-slot-value ptr 'day)
-    (fli:foreign-slot-value ptr 'month)
-    (fli:foreign-slot-value ptr 'year))
-   (fli:foreign-slot-value ptr 'fraction)))
-
-#+lispworks
-(defun universal-time-to-timestamp (time &optional (fraction 0))
-  (multiple-value-bind (sec min hour day month year)
-      (decode-universal-time time)
-    (let ((ptr (fli:allocate-foreign-object :type 'sql-c-timestamp)))
-      (setf (fli:foreign-slot-value ptr 'second) sec
-            (fli:foreign-slot-value ptr 'minute) min
-            (fli:foreign-slot-value ptr 'hour) hour
-            (fli:foreign-slot-value ptr 'day) day
-            (fli:foreign-slot-value ptr 'month) month
-            (fli:foreign-slot-value ptr 'year) year
-            (fli:foreign-slot-value ptr 'fraction) fraction)
-      ptr)))
-
-#+lispworks
-(defun %put-timestamp (ptr time &optional (fraction 0))
-  (multiple-value-bind (sec min hour day month year)
-      (decode-universal-time time)
-    (setf (fli:foreign-slot-value ptr 'second) sec
-          (fli:foreign-slot-value ptr 'minute) min
-          (fli:foreign-slot-value ptr 'hour) hour
-          (fli:foreign-slot-value ptr 'day) day
-          (fli:foreign-slot-value ptr 'month) month
-          (fli:foreign-slot-value ptr 'year) year
-          (fli:foreign-slot-value ptr 'fraction) fraction)
-      ptr))
-
-#+lispworks
-(defun date-to-universal-time (ptr)
-  (encode-universal-time
-   0 0 0
-   (fli:foreign-slot-value ptr 'day)
-   (fli:foreign-slot-value ptr 'month)
-   (fli:foreign-slot-value ptr 'year)))
-
-#+lispworks
-(defun time-to-universal-time (ptr)
-  (encode-universal-time 
-   (fli:foreign-slot-value ptr 'second)
-   (fli:foreign-slot-value ptr 'minute)
-   (fli:foreign-slot-value ptr 'hour)
-   0 0 0))
-
-#+pcl
-(defun timestamp-to-universal-time (ptr)
-  (values
-   (encode-universal-time 
-    (alien:slot ptr 'second)
-    (alien:slot ptr 'minute)
-    (alien:slot ptr 'hour)
-    (alien:slot ptr 'day)
-    (alien:slot ptr 'month)
-    (alien:slot ptr 'year))
-   (alien:slot ptr 'fraction)))
-
-#+pcl
-(defun date-to-universal-time (ptr)
-  (encode-universal-time
-   0 0 0
-   (alien:slot ptr 'day)
-   (alien:slot ptr 'month)
-   (alien:slot ptr 'year)))
-
-#+pcl
-(defun time-to-universal-time (ptr)
-  (encode-universal-time 
-   (alien:slot ptr 'second)
-   (alien:slot ptr 'minute)
-   (alien:slot ptr 'hour)
-   1 1 1900)) ;; *** fix this!
-
-#+allegro
-(defun timestamp-to-universal-time (ptr)
-  (values
-   (encode-universal-time 
-    (ff:fslot-value-typed 'sql-c-timestamp nil ptr 'second)
-    (ff:fslot-value-typed 'sql-c-timestamp nil ptr 'minute)
-    (ff:fslot-value-typed 'sql-c-timestamp nil ptr 'hour)
-    (ff:fslot-value-typed 'sql-c-timestamp nil ptr 'day)
-    (ff:fslot-value-typed 'sql-c-timestamp nil ptr 'month)
-    (ff:fslot-value-typed 'sql-c-timestamp nil ptr 'year))
-   (ff:fslot-value-typed 'sql-c-timestamp nil ptr 'fraction)))
-
-#+allegro
-(defun date-to-universal-time (ptr)
-  (encode-universal-time
-   0 0 0
-   (ff:fslot-value-typed nil ptr 'day)
-   (ff:fslot-value-typed nil ptr 'month)
-   (ff:fslot-value-typed nil ptr 'year)))
-   
-#+allegro
-(defun time-to-universal-time (ptr)
-  (encode-universal-time 
-    (ff:fslot-value-typed nil ptr 'second)
-    (ff:fslot-value-typed nil ptr 'minute)
-    (ff:fslot-value-typed nil ptr 'hour)
-   0 0 0))
-
-#+cormanlisp
-(defun timestamp-to-universal-time (ptr)
-  (values
-   (encode-universal-time 
-	(ct:cref sql-c-timestamp ptr second)
-	(ct:cref sql-c-timestamp ptr minute)
-	(ct:cref sql-c-timestamp ptr hour)
-	(ct:cref sql-c-timestamp ptr day)
-	(ct:cref sql-c-timestamp ptr month)
-	(ct:cref sql-c-timestamp ptr year)
-	(ct:cref sql-c-timestamp ptr fraction))))
-
-#+cormanlisp
-(defun date-to-universal-time (ptr)
-  (encode-universal-time
-   0 0 0
-	(ct:cref sql-c-date ptr day)
-	(ct:cref sql-c-date ptr month)
-	(ct:cref sql-c-date ptr year)))
-
-#+cormanlisp
-(defun time-to-universal-time (ptr)
-  (encode-universal-time 
-	(ct:cref sql-c-time ptr second)
-	(ct:cref sql-c-time ptr minute)
-	(ct:cref sql-c-time ptr hour)
-   0 0 0))
-||#

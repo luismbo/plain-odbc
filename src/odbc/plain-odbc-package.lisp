@@ -9,7 +9,7 @@
 
 (defpackage "PLAIN-ODBC"
   (:use 
-   "COMMON-LISP" #+mcl "CCL" #+cormanlisp "WIN32" "FFC")
+   "COMMON-LISP" #+mcl "CCL" #+cormanlisp "WIN32" "UFFI")
   (:export
    "EXEC-QUERY" 
    "EXEC-UPDATE" 

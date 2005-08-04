@@ -9,25 +9,28 @@
   :components (;; global customization
                (:file "customization")
                ;; this is foreign function compatibility module 
-               #+clisp
-               (:module "ffc"
-                        :pathname "src/ffc/clisp/"   
-                        :components ((:file "ffc-package")
-                                     (:file "ff-compatibility-clisp"))
-                        :serial t)
-               #+allegro
-               (:module "ffc"
-                        :pathname "src/ffc/allegro/"   
-                        :components ((:file "ffc-package")
-                                     (:file "ff-compatibility-acl"))
-                        :serial t)
-               ;; the odbc fcuntions
+               ;#+clisp
+;               (:module "ffc"
+;                        :pathname "src/ffc/clisp/"   
+;                        :components ((:file "ffc-package")
+;                                     (:file "ff-compatibility-clisp"))
+;                        :serial t)
+;               #+allegro
+;               (:module "ffc"
+;                        :pathname "src/ffc/allegro/"   
+;                        :components ((:file "ffc-package")
+;                                     (:file "ff-compatibility-acl"))
+;                        :serial t)
+             
+               
+                         ;the odbc fcuntions
                (:module "odbc-stuff"
                         :pathname "src/odbc/"
                         :components 
                          ((:file "plain-odbc-package")
                           (:file "odbc-constants")
                           (:file "global")
+                          (:file "uffi-support")
                           (:file "odbc-ff-interface")
                           (:file "odbc-functions")
                           (:file "parameter")

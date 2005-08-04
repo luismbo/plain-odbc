@@ -54,10 +54,11 @@
       param)))
 
 (defun bind-parameter (hstmt pos param)
-  (setf (slot-value param 'value-ptr) 
-          (%new-ptr :ptr (slot-value param 'buffer-length)))
+ #+ignore  
+ (setf (slot-value param 'value-ptr) 
+         (%new-ptr :ptr (slot-value param 'buffer-length)))
   (setf (slot-value param 'ind-ptr) 
-          (%new-ptr :long))
+          (uffi:allocate-foreign-object :long))
   (%sql-bind-parameter 
    hstmt
    pos
@@ -76,9 +77,9 @@
 
 (defmethod free-parameter ((param parameter))
   (with-slots (value-ptr ind-ptr) param
-    (%dispose-ptr value-ptr)
+    (uffi:free-foreign-object value-ptr)
     (setf value-ptr nil) 
-    (%dispose-ptr ind-ptr)
+    (uffi:free-foreign-object ind-ptr)
     (setf ind-ptr nil)))
 
 (defun free-parameters (query)
@@ -105,19 +106,22 @@
       (setf value-type $SQL_C_CHAR)
       (setf parameter-type $SQL_VARCHAR)
       (setf column-size length-of-buffer)
-      (setf buffer-length length-of-buffer))))
+      (setf buffer-length length-of-buffer)
+      (setf value-ptr (uffi:allocate-foreign-string length-of-buffer)))))
 
 (defmethod set-parameter-value ((param string-parameter) value)
   (cond
     ((null value)
-      (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA)
+      (setf  (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+              $SQL_NULL_DATA)
       (%put-str (slot-value param 'value-ptr) "" 0))
     (t 
       (%put-str (slot-value param 'value-ptr) value (length value))
-      (%put-long (slot-value param 'ind-ptr) (length  value)))))
+      (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+              (length  value)))))
 
 (defmethod get-parameter-value ((param string-parameter))
-  (let ((len (%get-long (slot-value param 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value param 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA)
       nil
       (progn
@@ -137,20 +141,23 @@
       (setf value-type $SQL_C_WCHAR)
       (setf parameter-type $SQL_WVARCHAR)
       (setf column-size length-of-buffer)
-      (setf buffer-length length-of-buffer))))
+      (setf buffer-length length-of-buffer)
+      (setf value-ptr (uffi:allocate-foreign-object :unsigned-byte length-of-buffer)))))
 
 (defmethod set-parameter-value ((param unicode-string-parameter) value)
   (cond
     ((null value)
-      (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA)
+      (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long) 
+              $SQL_NULL_DATA)
       ;; not necessary
       (%put-unicode-string (slot-value param 'value-ptr) ""))
     (t 
       (%put-unicode-string (slot-value param 'value-ptr) value)
-      (%put-long (slot-value param 'ind-ptr) (* 2 (length  value))))))
+      (setf  (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+              (* 2 (length  value))))))
 
 (defmethod get-parameter-value ((param unicode-string-parameter))
-  (let ((len (%get-long (slot-value param 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value param 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA)
       nil
       (progn
@@ -169,21 +176,24 @@
                           ind-ptr) param
     (setf value-type $SQL_C_LONG)
     (setf parameter-type $SQL_INTEGER)
-    (setf buffer-length 4)))
+    (setf buffer-length 4)
+    (setf value-ptr (uffi:allocate-foreign-object :long))))
 
 (defmethod set-parameter-value ((param integer-parameter) value)
   (cond 
     ((null value)
-      (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA))
-    (t (%put-long (slot-value param 'value-ptr) value)
-      (%put-long (slot-value param 'ind-ptr) 0))))
+      (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+              $SQL_NULL_DATA))
+    (t (setf (uffi:deref-pointer (slot-value param 'value-ptr) :long) 
+               value)
+      (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long) 0))))
 
 (defmethod get-parameter-value ((param integer-parameter))
-  (let ((len (%get-long (slot-value param 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value param 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA)
       nil
       (progn
-        (%get-long (slot-value param 'value-ptr))))))
+        (uffi:deref-pointer (slot-value param 'value-ptr) :long)))))
 
 
 ;;----------------------------
@@ -199,20 +209,23 @@
                            ind-ptr) param
      (setf value-type $SQL_C_DOUBLE)
      (setf parameter-type $SQL_DOUBLE)
-     (setf buffer-length 8)))
+     (setf buffer-length 8)
+     (setf value-ptr (uffi:allocate-foreign-object :double ))))
 
 (defmethod set-parameter-value ((param double-parameter) value)
    (cond  
      ((null value)
-       (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA))
-     (t (%put-double-float (slot-value param 'value-ptr) 
-                           (coerce value 'double-float))
-       (%put-long (slot-value param 'ind-ptr) 8))))
+       (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long) 
+               $SQL_NULL_DATA))
+     (t 
+       (setf (uffi:deref-pointer (slot-value param 'value-ptr) :double)
+               (coerce value 'double-float))
+       (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long) 8))))
 
 (defmethod get-parameter-value ((param double-parameter))
-    (if (= (%get-long (slot-value param 'ind-ptr)) $SQL_NULL_DATA)
+    (if (= (uffi:deref-pointer (slot-value param 'ind-ptr) :long) $SQL_NULL_DATA)
       nil
-      (%get-double-float (slot-value param 'value-ptr))))
+      (uffi:deref-pointer (slot-value param 'value-ptr) :double)))
 
 ;;-----------------
 ;; date parameter
@@ -228,22 +241,24 @@
      (setf value-type $SQL_C_TIMESTAMP)
      (setf parameter-type $SQL_TIMESTAMP)
      ;;fixme length
-     (setf buffer-length 24)))
+     (setf buffer-length 24)
+     (setf value-ptr (uffi:allocate-foreign-object :unsigned-byte 24))))
 
 
 (defmethod set-parameter-value ((param date-parameter) value)
   (if (null value)
-    (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA)
+    (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+            $SQL_NULL_DATA)
     (progn
       ;; fixme warum 1?
-      (%put-long (slot-value param 'ind-ptr) 1)
+      (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long) 1)
       (multiple-value-bind (sec min hour day month year)
           (decode-universal-time  
            (funcall *date-datatype-to-universal-time* value))
         (%put-sql-c-timestamp (slot-value param 'value-ptr) year month day hour min sec 0)))))
 
 (defmethod get-parameter-value ((param date-parameter))
-  (let ((len (%get-long (slot-value param 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value param 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA) 
       nil
       (funcall *universal-time-to-date-dataype*
@@ -263,11 +278,13 @@
                             ind-ptr) param
       (setf value-type $SQL_C_BINARY)
       (setf parameter-type $SQL_VARBINARY)
-      (setf buffer-length length-of-buffer))))
+      (setf buffer-length length-of-buffer)
+      (setf value-ptr (uffi:allocate-foreign-object :unsigned-byte length-of-buffer)))))
 
 (defmethod set-parameter-value ((param binary-parameter) value)
 (if (null value)
-  (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA)
+  (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+          $SQL_NULL_DATA)
     (if (< (slot-value param 'buffer-length) (length value))
       (progn
         (error "buffer is to small")
@@ -275,12 +292,14 @@
         ; or set data_at_execution =1
         )
       (progn
-        (%put-long (slot-value param 'ind-ptr) (length value))
+        ;(break)
+        (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long) 
+                (length value))
         (%put-binary (slot-value param 'value-ptr) value)))))
 
 
 (defmethod get-parameter-value ((param binary-parameter))
-  (let ((len (%get-long (slot-value param 'ind-ptr))))
+  (let ((len (uffi:deref-pointer (slot-value param 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA) 
       nil
       (%get-binary (slot-value param 'value-ptr) len))))
@@ -306,16 +325,19 @@
     (setf parameter-type $SQL_LONGVARCHAR)
     ;; the value-ptr will be needed to find the parameter,  
     ;; we store the position there
-    (setf buffer-length 4)))
+    (setf buffer-length 4)
+    (setf value-ptr (uffi:allocate-foreign-object :long))))
 
 (defmethod set-parameter-value ((param clob-parameter) value)
   (if (null value)
-    (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA)
+    (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+            $SQL_NULL_DATA)
     (progn
       (setf (slot-value param 'temp-val) value)
-      (%put-long (slot-value param 'value-ptr) (slot-value param 'position))
-      (%put-long (slot-value param 'ind-ptr)
-                 (%sql-len-data-at-exec (length value))))))
+      (setf (uffi:deref-pointer (slot-value param 'value-ptr) :long) 
+                                (slot-value param 'position))
+      (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+              (%sql-len-data-at-exec (length value))))))
 
 (defmethod send-parameter-data ((param clob-parameter) hstmt)
   (let* ((temp-val (slot-value param 'temp-val))
@@ -323,7 +345,7 @@
          (buffer-length (min *lob-fetch-buffer-size* value-len))
          ;; fixme charcater length and UTF8
          ;; fixme buffer-length +1 since %put-str adds a trailing zero byte
-         (buffer (%new-ptr :ptr (+ buffer-length 1))))
+         (buffer (uffi:allocate-foreign-string  (+ buffer-length 1))))
     (let ((pos 0))
       (loop
         (let ((len (min (- value-len pos) buffer-length)))
@@ -335,7 +357,7 @@
             (setf pos (+ pos len))
             (if (>= pos value-len)
               (return)))))
-      (%dispose-ptr buffer)
+      (uffi:free-foreign-object buffer)
       )))
 
 ;;;--------------------
@@ -353,22 +375,25 @@
     (setf parameter-type $SQL_WLONGVARCHAR)
     ;; the value-ptr will be needed to find the parameter,  
     ;; we store the position there
-    (setf buffer-length 4)))
+    (setf buffer-length 4)
+    (setf value-ptr (uffi:allocate-foreign-object :long))))
 
 (defmethod set-parameter-value ((param uclob-parameter) value)
   (if (null value)
-    (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA)
+    (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+            $SQL_NULL_DATA)
     (progn
       (setf (slot-value param 'temp-val) value)
-      (%put-long (slot-value param 'value-ptr) (slot-value param 'position))
-      (%put-long (slot-value param 'ind-ptr)
+      (setf (uffi:deref-pointer (slot-value param 'value-ptr) :long)
+              (slot-value param 'position))
+      (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
                  (%sql-len-data-at-exec (* 2 (length value)))))))
 
 (defmethod send-parameter-data ((param uclob-parameter) hstmt)
   (let* ((temp-val (slot-value param 'temp-val))
          (value-len (length temp-val))
          (buffer-length-in-chars (min (truncate *lob-fetch-buffer-size* 2) value-len))
-         (buffer (%new-ptr :ptr (* 2 (+ buffer-length-in-chars 1)))))
+         (buffer (uffi:allocate-foreign-object :unsigned-byte (* 2 (+ buffer-length-in-chars 1)))))
     (let ((pos 0))
       (loop
         (let ((len (min (- value-len pos) buffer-length-in-chars)))
@@ -380,7 +405,7 @@
             (setf pos (+ pos len))
             (if (>= pos value-len)
               (return)))))
-      (%dispose-ptr buffer)
+      (uffi:free-foreign-object buffer)
       )))
 
 
@@ -399,25 +424,29 @@
     (setf parameter-type $SQL_LONGVARBINARY)
     ;; the value-ptr will be needed to find the parameter, 
     ;; we store the position there
-    (setf buffer-length 4)))
+    (setf buffer-length 4)
+    (setf value-ptr (uffi:allocate-foreign-object :long))))
 
 (defmethod set-parameter-value ((param blob-parameter) value)
   (if (null value)
-    (%put-long (slot-value param 'ind-ptr) $SQL_NULL_DATA)
+    (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+            $SQL_NULL_DATA)
     (progn
       (setf (slot-value param 'temp-val) value)
-      (%put-long (slot-value param 'value-ptr) (slot-value param 'position))
-      (%put-long (slot-value param 'ind-ptr)
-                 (%sql-len-data-at-exec (length value))))))
+      (setf (uffi:deref-pointer (slot-value param 'value-ptr) :long)
+              (slot-value param 'position))
+      (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
+              (%sql-len-data-at-exec (length value))))))
 
 (defmethod send-parameter-data ((param blob-parameter) hstmt)
   (let* ((temp-val (slot-value param 'temp-val))
          (len (length temp-val))
-         (buffer (%new-ptr :ptr len)))
+         (buffer (uffi:allocate-foreign-object :unsigned-byte 
+                                               (if (zerop len) 1 len))))
     (%put-binary buffer
                  temp-val
                  len)
     (let ((res (%sql-put-data hstmt buffer len)))
       (declare (ignore res)))
-    (%dispose-ptr buffer)))
+    (uffi:free-foreign-object buffer)))
 
