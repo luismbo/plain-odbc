@@ -13,16 +13,21 @@
 
 
 (def-foreign-type sql-handle :pointer-void)
-(def-foreign-type string-ptr (* :char))
+(def-foreign-type string-ptr (* :unsigned-char))
+
+(eval-when (:load-toplevel :execute)
+  (assert (load-foreign-library *odbc-library-file*
+                                :module "odbc"
+                                :supporting-libraries '())))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (macrolet 
-      ((define-foreign-function (name args ret)
+       ((define-foreign-function (name args ret)
            (list 'def-function name 
                  (mapcar 
                   (lambda (x) (list (first x) (second x))) 
                   args)
-                 :returning ret :module "odbc32.dll")))
+                 :returning ret :module "odbc")))
            
     (define-foreign-function "SQLAllocEnv"
         ((*phenv (* sql-handle))    ; HENV   FAR *phenv
@@ -37,11 +42,11 @@
   
   (define-foreign-function "SQLConnect"
     ((hdbc sql-handle)          ; HDBC        hdbc
-     (*szDSN :cstring)        ; UCHAR  FAR *szDSN
+     (*szDSN (* :unsigned-char))        ; UCHAR  FAR *szDSN
      (cbDSN :short)             ; SWORD       cbDSN
-     (*szUID :cstring)        ; UCHAR  FAR *szUID 
+     (*szUID (* :unsigned-char))        ; UCHAR  FAR *szUID 
      (cbUID :short)             ; SWORD       cbUID
-     (*szAuthStr :cstring)    ; UCHAR  FAR *szAuthStr
+     (*szAuthStr (* :unsigned-char))    ; UCHAR  FAR *szAuthStr
      (cbAuthStr :short)         ; SWORD       cbAuthStr
      )
     :short)              ; RETCODE_SQL_API
@@ -49,15 +54,17 @@
   (define-foreign-function "SQLDriverConnect"
     ((hdbc sql-handle)          ; HDBC        hdbc
      (hwnd sql-handle)          ; SQLHWND     hwnd
-     (*szConnStrIn :cstring)  ; UCHAR  FAR *szConnStrIn
+     ;(*szConnStrIn string-ptr)  ; UCHAR  FAR *szConnStrIn
+     (*szConnStrIn (* :unsigned-char))  ; UCHAR  FAR *szConnStrIn
      (cbConnStrIn :short)       ; SWORD       cbConnStrIn
-     (*szConnStrOut string-ptr) ; UCHAR  FAR *szConnStrOut
+     ;(*szConnStrOut string-ptr) ; UCHAR  FAR *szConnStrOut
+     (*szConnStrOut (* :unsigned-char)) ; UCHAR  FAR *szConnStrOut
      (cbConnStrOutMax :short)   ; SWORD       cbConnStrOutMax
-     (*pcbConnStrOut :pointer-void)      ; SWORD  FAR *pcbConnStrOut
-     (fDriverCompletion :short) ; UWORD       fDriverCompletion
+     (*pcbConnStrOut (* :short))      ; SWORD  FAR *pcbConnStrOut
+     (fDriverCompletion :unsigned-short) ; UWORD       fDriverCompletion
      )
     :short)              ; RETCODE_SQL_API
-  
+   
   (define-foreign-function "SQLDisconnect"
     ((hdbc sql-handle))         ; HDBC        hdbc
     :short)              ; RETCODE_SQL_API
@@ -120,11 +127,13 @@
     ((henv sql-handle)          ; HENV        henv
      (hdbc sql-handle)          ; HDBC        hdbc
      (hstmt sql-handle)         ; HSTMT       hstmt
-     (*szSqlState string-ptr)   ; UCHAR  FAR *szSqlState
+;     (*szSqlState string-ptr)   ; UCHAR  FAR *szSqlState
+     (*szSqlState (* :unsigned-char))   ; UCHAR  FAR *szSqlState
      (*pfNativeError :pointer-void)      ; SDWORD FAR *pfNativeError
-     (*szErrorMsg string-ptr)   ; UCHAR  FAR *szErrorMsg
+;     (*szErrorMsg string-ptr)   ; UCHAR  FAR *szErrorMsg
+     (*szErrorMsg (* :unsigned-char))   ; UCHAR  FAR *szErrorMsg
      (cbErrorMsgMax :short)     ; SWORD       cbErrorMsgMax
-     (*pcbErrorMsg :pointer-void)        ; SWORD  FAR *pcbErrorMsg
+     (*pcbErrorMsg (* :short))        ; SWORD  FAR *pcbErrorMsg
      )
     :short)              ; RETCODE_SQL_API
 
@@ -143,11 +152,11 @@
   (define-foreign-function "SQLDescribeCol"
     ((hstmt sql-handle)         ; HSTMT       hstmt
      (icol :short)              ; UWORD       icol
-     (*szColName string-ptr)    ; UCHAR  FAR *szColName
+     (*szColName (* :unsigned-char))    ; UCHAR  FAR *szColName
      (cbColNameMax :short)      ; SWORD       cbColNameMax
      (*pcbColName (* :short))         ; SWORD  FAR *pcbColName
      (*pfSqlType (* :short))          ; SWORD  FAR *pfSqlType
-     (*pcbColDef (* :unsigned-short))          ; UDWORD FAR *pcbColDef
+     (*pcbColDef (* :unsigned-long))          ; UDWORD FAR *pcbColDef
      (*pibScale (* :short))           ; SWORD  FAR *pibScale
      (*pfNullable (* :short))         ; SWORD  FAR *pfNullable
      )
@@ -166,13 +175,13 @@
 
   (define-foreign-function "SQLColumns"
     ((hstmt sql-handle)             ; HSTMT       hstmt
-     (*szTableQualifier string-ptr) ; UCHAR  FAR *szTableQualifier
+     (*szTableQualifier (* :unsigned-char)) ; UCHAR  FAR *szTableQualifier
      (cbTableQualifier :short)      ; SWORD       cbTableQualifier
-     (*szTableOwner string-ptr)     ; UCHAR  FAR *szTableOwner
+     (*szTableOwner (* :unsigned-char))     ; UCHAR  FAR *szTableOwner
      (cbTableOwner :short)          ; SWORD       cbTableOwner
-     (*szTableName string-ptr)      ; UCHAR  FAR *szTableName
+     (*szTableName (* :unsigned-char))      ; UCHAR  FAR *szTableName
      (cbTableName :short)           ; SWORD       cbTableName
-     (*szColumnName string-ptr)     ; UCHAR  FAR *szColumnName
+     (*szColumnName (* :unsigned-char))     ; UCHAR  FAR *szColumnName
      (cbColumnName :short)          ; SWORD       cbColumnName
      )
     :short)              ; RETCODE_SQL_API

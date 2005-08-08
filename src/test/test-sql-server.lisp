@@ -20,17 +20,29 @@
   (ss-test9 con)
   (ss-test10 con)
   (ss-test11 con)
+  (pprint 11)
   (ss-test12 con)
+  (pprint 12)
   (ss-test13 con)
+  (pprint 13)
   (ss-test14 con)
+  (pprint 14)
   (ss-test15 con)
+  (pprint 15)
   (ss-test16 con)
+  (pprint 16)
   (ss-test17 con)
+  (pprint 17)
   (ss-test18 con)
+  (pprint 18)
   (ss-test19 con)
+  (pprint 19)
   (ss-test20 con)
+  (pprint 20)
   (ss-test21 con)
-  (ss-test22 con))
+  (pprint 21)
+  (ss-test22 con)
+  (pprint 22))
 
 (defparameter *sql-server-type_test-ddl* "
 CREATE TABLE [type_test] (
@@ -125,9 +137,9 @@ CREATE TABLE [type_test] (
                                 '((:blob :in) (:clob :in) (:clob :in)))))
     (exec-prepared-update stm 
                           (list 
-                           (make-array 100000 :element-type '(unsigned-byte 8) :initial-element 33)
-                           (make-string 100001 :initial-element #\o)
-                           (make-string 100001 :initial-element #\o)
+                           (make-array 10000 :element-type '(unsigned-byte 8) :initial-element 33)
+                           (make-string 10001 :initial-element #\o)
+                           (make-string 10001 :initial-element #\o)
                            )))
   (commit con))
 
@@ -316,7 +328,7 @@ CREATE TABLE [type_test] (
         ;(pprint len)
         (let ((string (make-funny-string 
                        len 
-                       (coerce (list (code-char 2341) (code-char 2347) #\a) 'string ))))
+                       (coerce (list (code-char 2341) (code-char 2347) #\a) 'vector ))))
           (exec-prepared-update stm (list len string))
           (let ((res (exec-query con (format nil "select b from test999 where a=~A" len))))
           (assert (equal res
@@ -333,8 +345,8 @@ CREATE TABLE [type_test] (
   (with-prepared-statement (stm con "{?=call test99(?,?)}" 
                                 '((:integer :out) (:unicode-string :inout) 
                                   (:unicode-string :inout)))
-    (let ((str1 (make-funny-string 700  (coerce (list (code-char 2341) (code-char 2347) #\a) 'string )  ))
-          (str2 (make-funny-string 900   (coerce (list (code-char 2341) (code-char 2347) #\a) 'string ))))
+    (let ((str1 (make-funny-string 700  (coerce (list (code-char 2341) (code-char 2347) #\a) 'vector )  ))
+          (str2 (make-funny-string 900   (coerce (list (code-char 2341) (code-char 2347) #\a) 'vector ))))
       
     (let ((res (exec-prepared-command stm (list str1 str2))))
       (assert (equal res (list 99 str2 str1)))))))
@@ -430,7 +442,7 @@ CREATE TABLE [type_test] (
           (exec-query con 
                       "select id aaa,t_image bbb,t_text ccc from type_test where id=?"
                       id)
-        (assert (equalp r1 (list (list id (coerce binary '(array (unsigned-byte 8))) str))))
+        (assert (equalp r1 (list (list id (coerce binary '(vector (unsigned-byte 8))) str))))
         (assert (equal m1 '("aaa" "bbb" "ccc")))
         (commit con)))))
 

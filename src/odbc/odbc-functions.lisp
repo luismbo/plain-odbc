@@ -44,21 +44,23 @@
   ())
 
 (defun handle-error (henv hdbc hstmt)
-   (with-temporary-allocations
+   (let
        ((sql-state (uffi:allocate-foreign-string 256))
         (error-message (uffi:allocate-foreign-string #.$SQL_MAX_MESSAGE_LENGTH))
         (error-code (allocate-foreign-object :long))
         (msg-length (allocate-foreign-object :short)))
-     (SQLError henv hdbc hstmt sql-state
+     ;; fixme, remove
+     (SQLError henv 
+               hdbc 
+               hstmt sql-state
                error-code error-message
                $SQL_MAX_MESSAGE_LENGTH msg-length)
+     ;;;fixme, remove
      (values
       (uffi:convert-from-foreign-string error-message)
       (uffi:convert-from-foreign-string sql-state)
       (uffi:deref-pointer msg-length :short)
       (uffi:deref-pointer error-code :long))))
-
-       
 
 
 ; test this: return a keyword for efficiency
@@ -81,7 +83,7 @@
 
 (defun error-handling-fun (result-code henv hdbc hstmt)
   ;; *** is this a bug in allegro or in my code??
-  #+allegro (setf result-code (short-to-signed-short result-code))
+  ;#+allegro (setf result-code (short-to-signed-short result-code))
 
   (case result-code 
     (#.$SQL_SUCCESS (values result-code nil))
@@ -134,7 +136,7 @@
   (let ((result-code (gensym)))
     `(let ((,result-code ,odbc-call))
        ;; *** is this a bug in allegro or in my code??
-       #+allegro (setf ,result-code (short-to-signed-short ,result-code))
+       ;#+allegro (setf ,result-code (short-to-signed-short ,result-code))
        (case ,result-code
          (#.$SQL_SUCCESS
           (progn ,result-code ,@body))
@@ -159,15 +161,17 @@
                                              (or ,hstmt (%null-ptr)))
             (error "[ODBC error] ~a; state: ~a" error-message sql-state)))
          (otherwise
-          (progn ,result-code ,@body))))))
+           (progn ,result-code ,@body))
+         ))))
 
 
 (defun %new-environment-handle ()
-  (uffi:with-foreign-object (phenv '(* sql-handle)) 
+  (uffi:with-foreign-object (phenv 'sql-handle)
     (with-error-handling
       ()
       (SQLAllocEnv phenv)
-      (uffi:deref-pointer phenv 'sql-handle))))
+      (uffi:deref-pointer phenv 'sql-handle)
+      )))
 
 (defun %sql-free-environment (henv)
   (with-error-handling 
@@ -175,7 +179,7 @@
     (SQLFreeEnv henv)))
 
 (defun %new-db-connection-handle (henv)
-  (uffi:with-foreign-object (phdbc '(* sql-handle))  
+  (uffi:with-foreign-object (phdbc 'sql-handle)  
     (with-error-handling
         (:henv henv)
       (SQLAllocConnect henv phdbc)
@@ -216,13 +220,13 @@
 
 ;;; fixme , with c-string?
 (defun %sql-connect (hdbc server uid pwd)
-  (let ((server-ptr server)
-        (uid-ptr uid)
-        (pwd-ptr pwd))
-    (with-error-handling 
-        (:hdbc hdbc)
+  (uffi:with-cstring (server-ptr server)
+    (uffi:with-cstring (uid-ptr uid)
+      (uffi:with-cstring (pwd-ptr pwd)
+        (with-error-handling 
+            (:hdbc hdbc)
       (SQLConnect hdbc server-ptr $SQL_NTS uid-ptr 
-                  $SQL_NTS pwd-ptr $SQL_NTS))))
+                  $SQL_NTS pwd-ptr $SQL_NTS))))))
 
 ;;
 (defun %sql-driver-connect (henv hdbc connection-string completion-option)
@@ -232,17 +236,21 @@
            (:required $SQL_DRIVER_COMPLETE_REQUIRED)
            (:prompt $SQL_DRIVER_PROMPT)
            (:noprompt $SQL_DRIVER_NOPROMPT))))
-    (let ((connection-str-ptr connection-string))
-      (with-temporary-allocations
-          ((complete-connection-str-ptr (uffi:allocate-foreign-string 1024))
-           (length-ptr (uffi:allocate-foreign-object :short)))
-        (with-error-handling 
+    (with-temporary-allocations
+        ((connection-str-ptr (uffi:convert-to-foreign-string connection-string))
+         (complete-connection-str-ptr (uffi:allocate-foreign-string 1024))
+         (length-ptr (uffi:allocate-foreign-object :short)))
+      (with-error-handling 
           (:henv henv :hdbc hdbc)
-          (SQLDriverConnect hdbc (%null-ptr) ; no window
-                            connection-str-ptr $SQL_NTS
+        
+        (SQLDriverConnect hdbc 
+                          (%null-ptr) ; no window
+                            connection-str-ptr 
+                            (length connection-string)
+                                        ;$SQL_NTS
                             complete-connection-str-ptr 1024
                             length-ptr completion-option))
-        (uffi:convert-from-foreign-string complete-connection-str-ptr)))))
+      (uffi:convert-from-foreign-string complete-connection-str-ptr))))
 
 (defun %disconnect (hdbc)
   (with-error-handling 
@@ -293,7 +301,7 @@
       (SQLFetch hstmt)))
 
 (defun %new-statement-handle (hdbc)
-  (with-temporary-allocations 
+  (with-temporary-allocations  
       ((hstmt-ptr (uffi:allocate-foreign-object 'sql-handle)))
     (with-error-handling 
         (:hdbc hdbc)
@@ -465,10 +473,9 @@
          (uffi:deref-pointer info-ptr :unsigned-long))))))
 
 (defun %sql-exec-direct (sql hstmt henv hdbc)
-  (let ((sql-ptr sql))
+  (uffi:with-cstring (sql-ptr sql)
     (with-error-handling
-      (:hstmt hstmt :henv henv :hdbc hdbc)
-      ;(break)
+        (:hstmt hstmt :henv henv :hdbc hdbc)
       (SQLExecDirect hstmt sql-ptr $SQL_NTS))))
 
 (defun %sql-cancel (hstmt)
@@ -486,7 +493,7 @@
       ((columns-nr-ptr (uffi:allocate-foreign-object :short)))
     (with-error-handling (:hstmt hstmt)
                          (SQLNumResultCols hstmt columns-nr-ptr)
-      (uffi:deref-pointer columns-nr-ptr :word))))
+      (uffi:deref-pointer columns-nr-ptr :short))))
 
 (defun result-rows-count (hstmt)
   (with-temporary-allocations 
@@ -504,7 +511,7 @@
   (with-temporary-allocations ((column-name-ptr (uffi:allocate-foreign-string 256))
                                (column-name-length-ptr (uffi:allocate-foreign-object :short))
                                (column-sql-type-ptr (uffi:allocate-foreign-object :short))
-                               (column-precision-ptr (uffi:allocate-foreign-object :long))
+                               (column-precision-ptr (uffi:allocate-foreign-object :unsigned-long))
                                (column-scale-ptr (uffi:allocate-foreign-object :short))
                                (column-nullable-p-ptr (uffi:allocate-foreign-object :short)))
     (with-error-handling (:hstmt hstmt)
@@ -607,7 +614,7 @@
 
 
 (defun %sql-prepare (hstmt sql)
-  (let ((sql-ptr sql))
+  (uffi:with-cstring (sql-ptr sql)
     (with-error-handling (:hstmt hstmt)
       (SQLPrepare hstmt sql-ptr $SQL_NTS))))
 
@@ -640,7 +647,7 @@
 
 (defun set-connection-attr-string (hdbc option val)
   (with-error-handling (:hdbc hdbc)
-    (let ((ptr val))
+    (uffi:with-cstring (ptr val)
       (SQLSetConnectAttr_string hdbc option ptr (length val)))))
 
 (defun %start-connection-trace (hdbc filename)
@@ -699,7 +706,7 @@
       (SQLExtendedFetch hstmt fetch-type row row-count-ptr
 			row-status-ptr)
       (values (uffi:deref-pointer row-count-ptr :unsigned-long)
-              (uffi:deref-pointer row-status-ptr :word)))))
+              (uffi:deref-pointer row-status-ptr :short)))))
 
 ; column-nr is zero-based
 (defun %sql-get-data (hstmt column-nr c-type data-ptr precision out-len-ptr)

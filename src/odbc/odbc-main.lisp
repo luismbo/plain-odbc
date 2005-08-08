@@ -25,7 +25,7 @@
    (connected-p :initform nil :reader CONNECTED-P)
    (server-name :reader server-name)
    (dbms-name :reader dbms-name)
-   (user-name :reader :user-name)
+   (user-name :reader user-name)
    ;; info returned from SQLGetInfo
    (info :initform (make-hash-table) :reader db-info))
   #+cormanlisp (:metaclass cl::class-slot-class))

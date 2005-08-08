@@ -15,7 +15,7 @@
 (defun make-funny-string (len &optional (source "abcdefghijklmnopqrstuvw12345!"))
   (let ((string (make-string len :initial-element (code-char 1000))))
     (dotimes (i len string)
-      (setf (char string i) (char source (random (length source)))))))
+      (setf (char string i) (aref source (random (length source)))))))
  
 (defun make-funny-bytes (len)
   (let ((bytes (make-array len :element-type '(unsigned-byte 8))))

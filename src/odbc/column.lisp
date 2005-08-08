@@ -487,7 +487,7 @@
           
           ;; we have to fetch the data in several steps
           (t 
-            (let ((sos (make-string-output-stream)))
+            (let ((sos (make-string-output-stream :element-type 'character)))
               (loop
                 (if (and (= sqlret $SQL_SUCCESS_WITH_INFO)
                          (equal (sql-state nil nil hstmt)

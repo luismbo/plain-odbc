@@ -1,4 +1,4 @@
-;;; -*- Mode:Lisp -*-
+;;; -*- Mode: Lisp -*-
 
 
 (asdf:defsystem "plain-odbc"
@@ -6,37 +6,21 @@
   ;:binary-pathname (translate-logical-pathname "plain-odbc:bin;")
   
   ;:source-extension "lisp"
-  :components (;; global customization
-               (:file "customization")
-               ;; this is foreign function compatibility module 
-               ;#+clisp
-;               (:module "ffc"
-;                        :pathname "src/ffc/clisp/"   
-;                        :components ((:file "ffc-package")
-;                                     (:file "ff-compatibility-clisp"))
-;                        :serial t)
-;               #+allegro
-;               (:module "ffc"
-;                        :pathname "src/ffc/allegro/"   
-;                        :components ((:file "ffc-package")
-;                                     (:file "ff-compatibility-acl"))
-;                        :serial t)
-             
-               
-                         ;the odbc fcuntions
+  :components (
                (:module "odbc-stuff"
                         :pathname "src/odbc/"
                         :components 
-                         ((:file "plain-odbc-package")
-                          (:file "odbc-constants")
-                          (:file "global")
-                          (:file "uffi-support")
-                          (:file "odbc-ff-interface")
-                          (:file "odbc-functions")
-                          (:file "parameter")
-                          (:file "column")
-                          (:file "odbc-main")
-                          (:file "odbc-utilities"))
-                         :serial t
-                         ))
-               :serial t) 
+                        ((:file "plain-odbc-package")
+                         (:file "odbc-constants")
+                         (:file "global")
+                         (:file "uffi-support")
+                         (:file "odbc-ff-interface")
+                         (:file "odbc-functions")
+                         (:file "parameter")
+                         (:file "column")
+                         (:file "odbc-main")
+                         (:file "odbc-utilities"))
+                        :serial t
+                        ))
+  :serial t
+  :depends-on (:uffi))
