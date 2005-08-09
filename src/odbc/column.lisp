@@ -148,7 +148,7 @@
       nil
       (progn
 ;        (break)
-        (wchar-bytes-to-string (%get-binary (slot-value column 'value-ptr) len))))))
+        (wchar-bytes-to-string (get-byte-vector (slot-value column 'value-ptr) len))))))
 
 
 
@@ -238,7 +238,7 @@
   (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA) 
       nil
-      (%get-binary (slot-value column 'value-ptr) len))))
+      (get-byte-vector (slot-value column 'value-ptr) len))))
 
 ;;;----------------------------
 ;;; bigint column
@@ -310,7 +310,7 @@
   (let ((len (uffi:deref-pointer (slot-value column 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA) 
       nil
-      (let ((bytes (%get-binary (slot-value column 'value-ptr) len))
+      (let ((bytes (get-byte-vector (slot-value column 'value-ptr) len))
             (sum 0))
         (dotimes (i 16)
           (setf sum (+ (* 256 sum) (aref bytes (- (+ 3 16) 1 i)))))
@@ -541,7 +541,7 @@
                      (equal (sql-state nil nil hstmt)
                           "01004"))
             
-            (let ((vec (%get-binary value-ptr buffer-length)))
+            (let ((vec (get-byte-vector value-ptr buffer-length)))
               (setf res (adjust-array res (+ res-len buffer-length)))
               (setf (subseq res res-len (+ res-len buffer-length)) vec)
               (setf res-len (length res))
@@ -555,7 +555,7 @@
             (return)))
         
         (setf len (uffi:deref-pointer ind-ptr :long))
-        (let ((vec (%get-binary value-ptr len)))
+        (let ((vec (get-byte-vector value-ptr len)))
           (setf res (adjust-array res (+ res-len len)))
           (setf (subseq res res-len (+ res-len len)) vec))
         res))))))

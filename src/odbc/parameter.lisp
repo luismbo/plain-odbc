@@ -114,9 +114,9 @@
     ((null value)
       (setf  (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
               $SQL_NULL_DATA)
-      (%put-str (slot-value param 'value-ptr) "" 0))
+      (put-string (slot-value param 'value-ptr) ""))
     (t 
-      (%put-str (slot-value param 'value-ptr) value (length value))
+      (put-string (slot-value param 'value-ptr) value )
       (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long)
               (length  value)))))
 
@@ -295,14 +295,14 @@
         ;(break)
         (setf (uffi:deref-pointer (slot-value param 'ind-ptr) :long) 
                 (length value))
-        (%put-binary (slot-value param 'value-ptr) value)))))
+        (put-byte-vector (slot-value param 'value-ptr) value)))))
 
 
 (defmethod get-parameter-value ((param binary-parameter))
   (let ((len (uffi:deref-pointer (slot-value param 'ind-ptr) :long)))
     (if (= len $SQL_NULL_DATA) 
       nil
-      (%get-binary (slot-value param 'value-ptr) len))))
+      (get-byte-vector (slot-value param 'value-ptr) len))))
 
 
 ;;;-----------------------
@@ -345,13 +345,13 @@
          (buffer-length (min *lob-fetch-buffer-size* value-len))
          ;; fixme charcater length and UTF8
          ;; fixme buffer-length +1 since %put-str adds a trailing zero byte
+         ;; really ?
          (buffer (uffi:allocate-foreign-string  (+ buffer-length 1))))
     (let ((pos 0))
       (loop
         (let ((len (min (- value-len pos) buffer-length)))
-          (%put-str buffer 
-                    (subseq temp-val pos (+ pos len))
-                    len)
+          (put-string buffer 
+                    (subseq temp-val pos (+ pos len)))
           (let ((res (%sql-put-data hstmt buffer len)))
             (declare (ignore res))
             (setf pos (+ pos len))
@@ -443,9 +443,8 @@
          (len (length temp-val))
          (buffer (uffi:allocate-foreign-object :unsigned-byte 
                                                (if (zerop len) 1 len))))
-    (%put-binary buffer
-                 temp-val
-                 len)
+    (put-byte-vector buffer
+                 temp-val)
     (let ((res (%sql-put-data hstmt buffer len)))
       (declare (ignore res)))
     (uffi:free-foreign-object buffer)))

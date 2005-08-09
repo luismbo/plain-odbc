@@ -12,10 +12,11 @@
 (in-package :plain-odbc)
 
 
+
 (def-foreign-type sql-handle :pointer-void)
 (def-foreign-type string-ptr (* :unsigned-char))
 
-(eval-when (:load-toplevel :execute)
+(eval-when (:load-toplevel :execute :compile-toplevel)
   (assert (load-foreign-library *odbc-library-file*
                                 :module "odbc"
                                 :supporting-libraries '())))
@@ -364,7 +365,7 @@
   (def-struct sql-c-date
     (year  :short)
     (month :short)
-    (day   :short))
+    (day   :short)) 
   
   (def-struct sql-c-timestamp
     (year     :short)
@@ -403,7 +404,7 @@
       (get-slot-value ptr 'sql-c-timestamp 'month)
       (get-slot-value ptr 'sql-c-timestamp 'year))
      (get-slot-value ptr 'sql-c-timestamp 'fraction))))
-  
+      
 
 (defun date-to-universal-time (adr)
   (with-cast-pointer (ptr adr 'sql-c-timestamp)
