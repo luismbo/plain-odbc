@@ -2,20 +2,41 @@
 <html>
   <!-- -*- Mode: html -*- -->
   <head>
-    <title>plain-odbc documentation</title>
+    <title>Plain-odbc Documentation</title>
   </head>
 
   <body>
     <h1>plain-odbc documentation</h1>
     <h2> Preface</h2>
-    This is the version of plain-odbc which I am using right now. 
-    The API could stand some improvements, currently it is rather 
-    simple. Hopefully it suffices for many uses. I thought I make 
-    the current version available before I make my mind up about 
-    another API. 
+    <p>
+      This is the version of plain-odbc which I am using right now. 
+      The API could stand some improvements, currently it is rather 
+      simple. Hopefully it suffices for many uses. I thought I make 
+      the current version available before I make my mind up about 
+      another API. 
+    </p>
+    <p>
+      For Information about ODBC-API, I recommend the
+      <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/odbc/htm/dasdkodbcoverview.asp">
+        ODBC documentation from Microsoft</a>.
+    </p>
+    <h2>Platforms</h2>
+    <p>
+      Plain-odbc uses UFFI to interface to the odbc libaries. I have tested it on 
+      Windows 
+      with Allegro CL Trial Edition (6.2), LispWorks Personal Edition (4.4) and 
+      CLISP 2.34. An implementation of UFFI (that just works) is included. 
+      It is based on the UFFI implementation of J&ouml;rg H&ouml;hle which can 
+      be found in the patches setion of 
+      <a href="http://sourceforge.net/projects/clisp">
+        SourceForge Website of CLISP</a>.
+      On Windows ODBC connections to Oracle and SQL-Server work. 
+      On Linux plain-odbc has been tested with CLISP and MySQL.
+    </p>
+    
     <h2> Using plain-odbc </h2>
     You must load plain-odbc into lisp. plain-odbc is an asdf module, 
-    so you need asdf.
+    so you need asdf. Make sure that asdf is able to find UFFI and plain-odbc.
     <pre>(asdf:oos 'asdf:load-op :plain-odbc)
     </pre>
     Then you have to create a connection to a database. The simplest way is 
@@ -51,7 +72,10 @@ and the we retrieve it with
 ((1.0d0 "text1")) ;
 ("X" "Y")
 </pre>
-Note that the column x is retrieved as double, this is a problem with Oracle. Oracle does not really have integer columns, integer is just a short hand for number(37,0), and in a query this is returned as decimal. And plain-odbc converts decimals to doubles.
+Note that the column x is retrieved as double, this is a problem with Oracle. 
+    Oracle does not really have integer columns, integer is just a short hand 
+    for number(37,0), and in a query this is returned as decimal. 
+    And plain-odbc converts decimals to doubles.
 <pre>
 [46]> (plain-odbc:exec-update *con* "update test1 set y='test1.1' where x=1") 
 
@@ -110,7 +134,6 @@ NIL
 
 
     <h2>Classes</h2>
-
     <ul>
       <li><tt>odbc-connection</tt> - this is an object which represents a connection
         to a database.
@@ -120,6 +143,9 @@ NIL
         <tt>exec-prepared...</tt> functions.
     </ul>
     <h2>Functions / Methods</h2>
+    Currently most functions are implemented as methods, but you should not depend on it.
+    
+    <h3>Connecting</h3>
     <p>
       <br><b>[Function]</b><br>
       <tt>connect <i> dsn user password</i> </tt><br>
@@ -147,6 +173,7 @@ NIL
       <tt>"dsn=ltrav1;uid=scott;pwd=tiger"</tt> and use this connection 
       string to connect with the function 
       <tt>SQLDriverConnect</tt> of the ODBC-API.
+      The user is not prompted for missing information.
       <em> Maybe this function should be called <tt>driver-connect</tt></em>? 
     </p>
     <p>
@@ -155,21 +182,24 @@ NIL
       database which is usually called 
       <tt>default-<em>databasetype</em>-dsn</tt>. This default dsn determines 
       then the used driver and some further properties. 
-    </p>
+      For example, <tt>connect-oracle</tt> has the parameters 
+      tns-name, user password. And the functions <tt>connect-access</tt> only parameter 
+      is the name of the .mdb file. 
     <p>
       <br><b>[Function]</b><br>
       <tt>connect-sql-server <i>server database</i> &optional <i>user password</i></tt><br>
       Connect to sql server named <i>server</i>, the initial database is <i>database</i>. 
       If <i>user</i> and <i>password</i> are supplied the connection is made with sql server 
       authentication, if the parameters are not supplied then the connection is made with
-      integrated security. The name of the template odbc datasource for this function is <tt>default-sql-server-dsn</tt>.
+      integrated security. The name of the template odbc datasource for this function is 
+      <tt>default-sql-server-dsn</tt>.
     </p>
-
     <p>
       <br><b>[Function]</b><br>
       <tt>connect-oracle <i>server user password</i></tt><br>
       Connect to oracle database <i>server</i>, connecting as <i>user</i> with 
-      password <i>password</i>. The name of the template odbc datasource for this function is <tt>default-oracle-dsn</tt>.
+      password <i>password</i>. The name of the template odbc datasource for this function is 
+      <tt>default-oracle-dsn</tt>.
     </p>
     <p>
       <br><b>[Function]</b><br>
@@ -179,38 +209,38 @@ NIL
       <tt>default-access-dsn</tt>.
     </p>
     <p>
-      <br><b>[Function]</b><br>
-      <tt>exec-query <i>connection sqlstring</i></tt><br>
-      Executes a query on <i>connection</i> and returns two values:<br>
-      the result set as a list of lists, i.e. a row is a list and the 
-      result set is a list of rows. <br>
-      The second value is a list of the column names.
-      <br><b>Note:</b>
-      Note: If a column is a LOB (BLOB or CLOB) then the data is retrieved
-      with the ODBC function SQLGetData. This has the consequence that 
-      thr following columns must also be retrieved with SQLGetData, 
-      otherwise an error is raised by the driver. 
-      Retrieving the following columns via 
-      SQLGetData is not done automatically. Therefore if a LOB is selected
-      it should be the last column.
-      <br><b>Note:</b>
-      The result set data is turned into lisp data automatically.
-      The odbc datatypes SQL_NUMERIC and SQL_DECIMAL are retrieved as doubles. 
-      If you need the full precision and decimal rounding of the datatypes, 
-      you should convert them to string in the select statement. But be carefull with
-      the conversion format is used (1.23 vs. 1,23).
-
-
-    </p>
+      
+    <h3>Working with Connections</h3>
+    <br><b>[Function]</b><br>
+    <tt>exec-query <i>connection sqlstring &amp;rest parameters</i></tt><br>
+    Executes a query on <i>connection</i> and returns two values:<br>
+    the result set as a list of lists, i.e. a row is a list and the 
+    result set is a list of rows. <br>
+    The second value is a list of the column names.
+    <br><b>Note:</b>
+    Note: If a column is a LOB (BLOB or CLOB) then the data is retrieved
+    with the ODBC function SQLGetData. This has the consequence that 
+    thr following columns must also be retrieved with SQLGetData, 
+    otherwise an error is raised by the driver. 
+    Retrieving the following columns via 
+    SQLGetData is not done automatically. Therefore if a LOB is selected
+    it should be the last column.
+    <br><b>Note:</b>
+    The result set data is converted to lisp data automatically.
+    The ODBC datatypes SQL_NUMERIC and SQL_DECIMAL are retrieved as doubles. 
+    If you need the full precision and decimal rounding of the datatypes, 
+    you should convert them to a string in the select statement. 
+    But be carefull with  the conversion format (1.23 vs. 1,23).
+  </p>
     <p>
       <br><b>[Function]</b><br>
-      <tt>exec-update <i>connection sqlstring</i></tt><br>
+      <tt>exec-update <i>connection sqlstring &amp;rest parameters</i></tt><br>
       Execute an update on <i>connection</i> with sql <i> sqlstring</i> 
       and returns the number of affected records. 
     </p>
     <p>
       <br><b>[Function]</b><br>
-      <tt>exec-command <i>connection sqlstring</i></tt></br>
+      <tt>exec-command <i>connection sqlstring &amp;rest parameters</i></tt></br>
       Execute an command on <i>connection</i> with sql <i>sqlstring</i>.
       Returns <tt>nil</tt>.
     </p>
@@ -241,25 +271,102 @@ NIL
       descriptions. A parameter description is a list 
       <tt>(parametertype direction further-args ...)</tt>. 
       <tt>parametertype</tt> determines the type of parameter and is one of 
+    </p>
+    <!-- todo
+    <h2>Columns</h2>
+    -->
+    <h2> Parameters </h2>
+    <p>
+      Plain-odbc supports the prepared statements of ODBC. In order to create 
+      a prepared statement, the SQL text and the formal parameters must be 
+      provided.  Later on, the prepared statement can be called by supplying
+      the actual parameters only.<br/>
+      It is also possible to supply parameters when calling the functions 
+      <tt>exec-query</tt>, <tt>exec-update</tt> and <tt>exec-command</tt>.
+      In this case the actual parameter and the parameter specification are
+      combined in a list or the paramter spcification is derived from the
+      actual parameter.
+    </p>
+    <p>
+      The function  <tt>prepare-statement</tt> is called with the parameters
     <ul>
-      <li><tt>:string</tt> a string, not very long
-      <li><tt>:unicode-string</tt> a string, not very long, the ODBC datatype is SQL_WVARCHAR
-      <li><tt>:integer</tt>, a integer, the ODBC datatype is SQL_INTEGER
-      <li><tt>:double</tt>,  a double float, the ODBC datatype is SQL_DOUBLE
-      <li><tt>:date</tt> a point in time, the ODBC datatype is $SQL_TIMESTAMP
-      <li><tt>:binary</tt> an array of (unsigned-byte 8)
-      <li><tt>:clob</tt>  a string, can be very large
-      <li><tt>:clob</tt>  a unicode string, can be very large
-      <li><tt>:blob</tt> an array of (unsigned-byte 8), can be very large
+      <li> a connection,
+      <li>an SQL text
+      <li> a <em>&amp;rest</em>  list of ODBC parameters.
     </ul> 
-      Direction determines if the parameter is a <tt>in</tt> , <tt>out</tt> or 
-      <tt>in/out</tt> parameter. The possible values are <tt>:in</tt>, <tt>:out</tt> or
-      <tt>:inout</tt>. The rest of the list are parameters for individual configuration
-      of the parameter. Currently this is only used for the string and binary 
-    parameters where one 
-      can supply the maximum length of the parameter.<br>
+    An element of this parameter list is a list, the first elment 
+    is a keyword,  the second element is the direction of the parameter, one of
+    <tt>:in</tt>, <tt>:out</tt> and <tt>:inout</tt>. The rest of the list are 
+    additional parameters for this parameter type. 
+    Currently the only parameter is the maximal length parameter parameter for 
+    the string and binary (= Oracle's raw) datatypes. Instead of a list for 
+    a parameter description only the name of the parameter type can be given. This is 
+    equivalent to a list with two elements: the symbol and the direction <tt>:in</tt>.
+    The following parameter types ares supported:
+    </p>
+    <table border=1>
+        <tr>
+          <th>Symbol</th>
+          <th>Explanation</th>
+          <th>ODBC Type</th>
+          <th>Parameters</th>
+        <tr>
+          <td><tt>:string</tt></td>
+          <td> a string, not very long </td>
+          <td> SQL_VARCHAR</td>
+          <td>length, integer optional</td>
+        </tr>
+        <tr>
+          <td><tt>:unicode-string</tt></td>
+          <td>a string, not very long</td> 
+          <td>SQL_WVARCHAR</td>
+          <td>length, integer optional</td>
+        </tr>
+        <tr>
+          <td><tt>:integer</tt> </td>
+          <td>an integer</td> 
+          <td>SQL_INTEGER</td>
+          <td></td>
+        <tr>
+          <td><tt>:double</tt></td>  
+          <td>a double float</td>
+          <td>SQL_DOUBLE</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td><tt>:date</tt></td> 
+          <td>a point in time, date + time of day</td>
+          <td>SQL_TIMESTAMP</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td><tt>:binary</tt></td> 
+          <td>an array of (unsigned-byte 8), not very long</td>
+          <td>SQL_VARBINARY</td>
+          <td>length, integer optional</td>
+        </tr>
+        <tr>
+          <td><tt>:clob</tt></td>  
+          <td>string, a LOB datatype</td>
+          <td>SQL_LONGVARCHAR</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td><tt>:uclob</tt></td>  
+          <td>unicode string, a LOB datatype</td>
+          <td>SQL_LONGWVARCHAR</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td><tt>:blob</tt></td> 
+          <td>an array of (unsigned-byte 8), a LOB datatype </td>
+          <td>SQL_LONGVARBINARY</td>
+          <td></td>
+        </tr>
+    </table>
     Example:
     <pre>
+
 [16]> (setf *stm* (prepare-statement *con* 
         "insert into emp (empno,deptno,ename,job,sal) values(?,?,?,?,?)"  
        '((:integer :in) (:integer :in) (:string :in 200) (:string :in 20) 
@@ -303,5 +410,12 @@ NIL
       <i>query</i>. For each in or in/out parameter there must be a value in the list list-of-parameters. The return value is the list values for  the out and in/out 
       parameters.
     </p>
+
+    <h2>Utilities</h2>
+    <br><b>[Macro]</b><br>
+    <tt>with-prepared-statement <i>(stm con string &amp;rest params) &amp;body body</i></tt><br>
+    Execute <tt>body</tt> with <tt>stm</tt> bound to 
+    <tt>(preparse-statement con string params ...)</tt>. 
+    After that, the prepared statement <tt>stm</tt> is freed.
   </body>
 </html>
