@@ -27,7 +27,6 @@
                    :uid user
                    :pwd pw))
 
-;; alternative
 (defun connect-sql-server (server database &optional (user-id nil) (password nil))
   (if (and user-id password)
     (connect-generic :dsn *default-sql-server-dsn*
@@ -43,11 +42,11 @@
                      )))
 
 (defun with-prepared-statement-fun (con string params fun)
-  (let ((stm (prepare-statement con string params)))
+  (let ((stm (apply #'prepare-statement con string params)))
     (unwind-protect 
       (funcall fun stm)
       (free-statement stm))))
 
-(defmacro with-prepared-statement  ((stm con string params) &body body)
-  `(with-prepared-statement-fun ,con ,string ,params (lambda (,stm) ,@body)))
+(defmacro with-prepared-statement  ((stm con string &rest params) &body body)
+  `(with-prepared-statement-fun ,con ,string (list ,@params) (lambda (,stm) ,@body)))
 

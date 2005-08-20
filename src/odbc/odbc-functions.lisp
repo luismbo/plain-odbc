@@ -49,13 +49,11 @@
         (error-message (uffi:allocate-foreign-string #.$SQL_MAX_MESSAGE_LENGTH))
         (error-code (allocate-foreign-object :long))
         (msg-length (allocate-foreign-object :short)))
-     ;; fixme, remove
      (SQLError henv 
                hdbc 
                hstmt sql-state
                error-code error-message
                $SQL_MAX_MESSAGE_LENGTH msg-length)
-     ;;;fixme, remove
      (values
       (uffi:convert-from-foreign-string error-message)
       (uffi:convert-from-foreign-string sql-state)
@@ -218,7 +216,6 @@
 
 ;; functional interface
 
-;;; fixme , with c-string?
 (defun %sql-connect (hdbc server uid pwd)
   (uffi:with-cstring (server-ptr server)
     (uffi:with-cstring (uid-ptr uid)

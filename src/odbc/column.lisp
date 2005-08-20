@@ -161,8 +161,9 @@
 (defmethod initialize-column ((column integer-column) args)
   (declare (ignore args))
   (setf (slot-value column 'c-type) $SQL_C_SLONG)
-  (setf (slot-value column 'buffer-length) 8)
-  (setf  (slot-value column 'value-ptr) 
+  (setf (slot-value column 'buffer-length) 
+          (uffi:size-of-foreign-type :long))
+  (setf (slot-value column 'value-ptr) 
           (uffi:allocate-foreign-object :long)))
 
 
@@ -182,8 +183,8 @@
 (defmethod initialize-column ((column double-column) args)
   (declare (ignore args))
   (setf (slot-value column 'c-type) $SQL_C_DOUBLE)
-  ;; fixme: set buffersize in a more generic way
-  (setf (slot-value column 'buffer-length) 8)
+  (setf (slot-value column 'buffer-length) 
+          (uffi:size-of-foreign-type :double))
   (setf (slot-value column 'value-ptr) (uffi:allocate-foreign-object :double)))
 
 (defmethod get-column-value ((column double-column))
@@ -203,8 +204,8 @@
 (defmethod initialize-column ((column date-column) args)
   (declare (ignore args)) 
   (setf (slot-value column 'c-type) $SQL_C_TIMESTAMP)
-  ;; fixme: really 32?
-  (setf (slot-value column 'buffer-length) 32)
+  (setf (slot-value column 'buffer-length) 
+          (uffi:size-of-foreign-type 'sql-c-timestamp))
   (setf (slot-value column 'value-ptr) (uffi:allocate-foreign-object :byte 32)))
 
 (defmethod get-column-value ((column date-column))

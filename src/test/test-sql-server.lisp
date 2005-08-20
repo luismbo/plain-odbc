@@ -134,13 +134,12 @@ CREATE TABLE [type_test] (
 ")
   (let ((stm (prepare-statement con "
    update type_test set t_image =?,t_text=?,t_ntext=? where id  = 1"
-                                '((:blob :in) (:clob :in) (:clob :in)))))
-    (exec-prepared-update stm 
-                          (list 
+                                '(:blob :in) '(:clob :in) '(:clob :in))))
+    (exec-prepared-update stm  
                            (make-array 10000 :element-type '(unsigned-byte 8) :initial-element 33)
                            (make-string 10001 :initial-element #\o)
                            (make-string 10001 :initial-element #\o)
-                           )))
+                           ))
   (commit con))
 
 (defun ss-drop-test-proc (con proc)
@@ -156,9 +155,9 @@ CREATE TABLE [type_test] (
  ")
   (commit con)
   (let ((stm (prepare-statement con "{call test99(?,?)}" 
-                                '((:integer :in) 
-                                  (:integer :out)))))
-    (assert (= 2 (first (exec-prepared-command stm (list 1)))))
+                                '(:integer :in) 
+                                '(:integer :out))))
+    (assert (= 2 (first (exec-prepared-command stm 1))))
     (free-statement stm)))
 
 
@@ -170,10 +169,10 @@ CREATE TABLE [type_test] (
  ")
   (commit con)
   (let ((stm (prepare-statement con "{call test99(?,?)}" 
-                                '((:string :in) 
-                                  (:string :out)))))
+                                '(:string :in) 
+                                '(:string :out))))
     (let ((str (make-funny-string 40)))
-      (assert (equal str (first (exec-prepared-command stm (list str)))))
+      (assert (equal str (first (exec-prepared-command stm str))))
       (free-statement stm)))
   (commit con))
 
@@ -187,8 +186,8 @@ CREATE TABLE [type_test] (
     set @b= dateadd(d,1,@a);return 789 ")
       (with-prepared-statement 
           (stm con "{?=call test99(?,?)}" 
-               '((:integer :out) (:date :in) (:date :out)))
-        (let ((res (exec-prepared-command stm (list "3323283742"))))
+               '(:integer :out) '(:date :in) '(:date :out))
+        (let ((res (exec-prepared-command stm "3323283742")))
           (assert (equal res (list 789 (write-to-string (+ 3323283742 86400))))))))
     (commit con)))
 
@@ -197,8 +196,9 @@ CREATE TABLE [type_test] (
   (exec-command con "create procedure test99 @a varchar(1000) out ,@b varchar(1000) out as
     declare @x varchar(1000); set @x=@a;set @a=@b; set @b=@x ;return 99")
   (with-prepared-statement (stm con "{?=call test99(?,?)}" 
-                                '((:integer :out) (:string :inout) (:string :inout)))
-    (let ((res (exec-prepared-command stm (list "abc" "xyz"))))
+                                '(:integer :out) '(:string :inout) 
+                                '(:string :inout))
+    (let ((res (exec-prepared-command stm "abc" "xyz")))
       (assert (equal res (list 99 "xyz" "abc"))))))
  
 
@@ -208,9 +208,9 @@ CREATE TABLE [type_test] (
   (exec-command con "create procedure test99 
     @a uniqueidentifier ,@b uniqueidentifier out as set @b=@a;")
   (with-prepared-statement (stm con "{call test99(?,?)}" 
-                                '((:binary :in) (:binary :out)))
+                                '(:binary :in) '(:binary :out))
     (let* ((guid (caar (exec-query con "select newid()")))
-           (res (exec-prepared-command stm (list guid))))
+           (res (exec-prepared-command stm guid)))
       (assert (equalp guid (first res))))
     (commit con)))
 
@@ -221,8 +221,10 @@ CREATE TABLE [type_test] (
     (ss-drop-test-proc con "test99")
     (exec-command con "create procedure test99
    @a datetime, @b datetime out as set @b=dateadd(d,2,@a)")
-    (with-prepared-statement (stm con "{call test99(?,?)}" '(:date (:date :out)))
-      (let ((res (exec-prepared-command stm '((:date 2003 3 4)))))
+    (with-prepared-statement (stm con "{call test99(?,?)}" 
+                                  ':date 
+                                  '(:date :out))
+      (let ((res (exec-prepared-command stm '(:date 2003 3 4))))
         (assert (equal res '((:date 2003 3 6 0 0 0))))))
     (let ((res (exec-query con "select dateadd(s,86399,'2005-6-7')")))
       (assert (equal res '(((:date 2005 6 7 23 59 59))))))))
@@ -251,9 +253,10 @@ CREATE TABLE [type_test] (
   (with-prepared-statement (stm 
                             con
                             "select convert(nvarchar(20),?),convert(varchar(20),?)"
-                            '((:string :in) (:unicode-string :in)))
+                            '(:string :in) 
+                            '(:unicode-string :in))
     (let* ((strings '("hjgkhgkzt65646&%2" "nnvfdsfsfz6tztﬂ0#="))
-           (res (exec-prepared-query stm strings)))
+           (res (exec-prepared-query stm (first strings) (second strings))))
       (assert (equal res (list strings))))))
 
 
@@ -264,7 +267,8 @@ CREATE TABLE [type_test] (
   (exec-command con "create table test999 (a int,b text)")
   (commit con)
   (with-prepared-statement (stm con "insert into test999 (a,b) values(?,?)" 
-                                '((:integer :in) (:clob :in)))
+                                '(:integer :in) 
+                                '(:clob :in))
     (let ((mp plain-odbc::*max-precision*))
       (dolist (len (list 0 1 2 3 4 5 900 9000 8192 8000 
                          (1- mp) 
@@ -274,10 +278,10 @@ CREATE TABLE [type_test] (
                          (1- (* 2 mp))
                          (1+ (* 2 mp))))
         (let ((string (make-funny-string len)))
-          (exec-prepared-update stm (list len string))
+          (exec-prepared-update stm len string)
           (let ((res (exec-query con (format nil "select b from test999 where a=~A" len))))
-          (assert (equal res
-                         (list (list string)))))))))
+            (assert (equal res
+                           (list (list string)))))))))
     (exec-command con "drop table test999")
     (commit con)
     )
@@ -288,7 +292,8 @@ CREATE TABLE [type_test] (
   (exec-command con "create table test999 (a int,b image)")
   (commit con)
   (with-prepared-statement (stm con "insert into test999 (a,b) values(?,?)" 
-                                '((:integer :in) (:blob :in)))
+                                '(:integer :in) 
+                                '(:blob :in))
     (let ((mp plain-odbc::*max-precision*))
       (dolist (len (list 0 1 2 3 4 5 900 9000 8192 8000 
                          (1- mp) 
@@ -298,7 +303,7 @@ CREATE TABLE [type_test] (
                          (1- (* 2 mp))
                          (1+ (* 2 mp)))) 
         (let ((byte-vec (make-funny-bytes len)))
-          (exec-prepared-update stm (list len byte-vec))
+          (exec-prepared-update stm len byte-vec)
           (let ((res (exec-query con (format nil "select b from test999 where a=~A" len))))
           (assert (equalp res
                          (list (list byte-vec)))))))))
@@ -314,7 +319,7 @@ CREATE TABLE [type_test] (
   (exec-command con "create table test999 (a int,b ntext)")
   (commit con)
   (with-prepared-statement (stm con "insert into test999 (a,b) values(?,?)" 
-                                '((:integer :in) (:unicode-clob :in)))
+                                '(:integer :in) '(:unicode-clob :in))
     (let ((mp plain-odbc::*max-precision*))
       (dolist (len (list 8 1 2 3 4 
                          5 900 9000 8192 8000 
@@ -329,7 +334,7 @@ CREATE TABLE [type_test] (
         (let ((string (make-funny-string 
                        len 
                        (coerce (list (code-char 2341) (code-char 2347) #\a) 'vector ))))
-          (exec-prepared-update stm (list len string))
+          (exec-prepared-update stm  len string)
           (let ((res (exec-query con (format nil "select b from test999 where a=~A" len))))
           (assert (equal res
                          (list (list string)))))))))
@@ -343,21 +348,21 @@ CREATE TABLE [type_test] (
   (ss-drop-test-proc con "test99")
   (exec-command con "create procedure test99 @a nvarchar(1000) out ,@b nvarchar(1000) out as declare @x nvarchar(1000); set @x=@a;set @a=@b; set @b=@x ;return 99")
   (with-prepared-statement (stm con "{?=call test99(?,?)}" 
-                                '((:integer :out) (:unicode-string :inout) 
-                                  (:unicode-string :inout)))
+                                '(:integer :out) '(:unicode-string :inout) 
+                                '(:unicode-string :inout))
     (let ((str1 (make-funny-string 700  (coerce (list (code-char 2341) (code-char 2347) #\a) 'vector )  ))
           (str2 (make-funny-string 900   (coerce (list (code-char 2341) (code-char 2347) #\a) 'vector ))))
       
-    (let ((res (exec-prepared-command stm (list str1 str2))))
-      (assert (equal res (list 99 str2 str1)))))))
+      (let ((res (exec-prepared-command stm str1 str2)))
+        (assert (equal res (list 99 str2 str1)))))))
  
 (defun ss-test13 (con)
   (ss-drop-test-proc con "test99")
   (exec-command con "create procedure test99 @a float,@b float out as 
                      set @b=@a+1 ;return 99")
   (with-prepared-statement (stm con "{?=call test99(?,?)}" 
-                                '((:integer :out) (:double :in) (:double :out)))
-    (let ((res (exec-prepared-command stm (list 1.8))))
+                                '(:integer :out) '(:double :in) '(:double :out))
+    (let ((res (exec-prepared-command stm 1.8)))
       (assert (= (second res) 2.8)))))
 
     
@@ -366,8 +371,8 @@ CREATE TABLE [type_test] (
   (exec-command con "create procedure test99 @a float as 
                      select @a+1 as a")
   (with-prepared-statement (stm con "{call test99(?)}" 
-                                '((:double :in)))
-    (let ((res (exec-prepared-query stm (list 1.8))))
+                                '(:double :in))
+    (let ((res (exec-prepared-query stm 1.8)))
       (assert (= (caar res) 2.8)))))
 
 
@@ -376,9 +381,9 @@ CREATE TABLE [type_test] (
     (assert (= (encode-universal-time 45 4 13 7 6 2005) (caar res)))))
 
 (defun ss-test16(con)
-  (with-prepared-statement (stm con "declare @d datetime; set @d=?; select convert(varchar(40),@d,120)" '((:date :in)))
-    (let ((res (exec-prepared-query stm (list 
-                                         (encode-universal-time 1 2 3 13 10 2005)))))
+  (with-prepared-statement (stm con "declare @d datetime; set @d=?; select convert(varchar(40),@d,120)"
+                                '(:date :in))
+    (let ((res (exec-prepared-query stm (encode-universal-time 1 2 3 13 10 2005))))
       (assert (equalp "2005-10-13 03:02:01" (caar res))))))
 
 
@@ -402,7 +407,7 @@ CREATE TABLE [type_test] (
     (multiple-value-bind (r1 m1 r2 m2)
         (exec-query con "select id,t_varchar from type_test where id=? ;
                         select id as a,t_varchar as b from type_test where id=?"
-                        id1 id2 )
+                    id1 id2 )
       (assert (and
                 (equal r1 (list (list id1 str1)))
                 (equal r2 (list (list id2 str2)))

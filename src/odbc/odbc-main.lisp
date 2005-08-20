@@ -386,7 +386,7 @@
   (exec-command* connection sql parameter-list))
 
   
-(defmethod prepare-statement ((connection odbc-connection) sql parameter-list)
+(defmethod prepare-statement ((connection odbc-connection) sql &rest parameter-list)
   (with-slots (hdbc) connection
     (let* ((query (make-prepared-statement connection))
            (pos 0)
@@ -463,7 +463,7 @@
       (values res (if (= res $SQL_NEED_DATA) 
                     (uffi:deref-pointer (uffi:deref-pointer ptr '(* :long)) :long  ))))))
 
-(defmethod exec-prepared-query ((query prepared-statement) parameters)
+(defmethod exec-prepared-query ((query prepared-statement) &rest parameters)
   (let ((hstmt (hstmt query)))
     (unwind-protect 
       (progn
@@ -485,7 +485,7 @@
     (%free-statement hstmt :close))))
 
 
-(defmethod exec-prepared-update ((query prepared-statement) parameters)
+(defmethod exec-prepared-update ((query prepared-statement) &rest parameters)
   (let ((hstmt (hstmt query)))
     (unwind-protect 
       (progn
@@ -494,7 +494,7 @@
           (if (= rowcount -1) nil rowcount)))
       (%free-statement hstmt :close))))
 
-(defmethod exec-prepared-command ((query prepared-statement) parameters)
+(defmethod exec-prepared-command ((query prepared-statement) &rest parameters)
   (let ((hstmt (hstmt query)))
     (unwind-protect 
       (progn

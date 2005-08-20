@@ -104,12 +104,14 @@ t_LONGTEXT longtext
 ")))
     ;(pprint res)
     )
-  (let ((stm (prepare-statement con "update type_test set t_longblob =?, t_longtext=? where id =1" '((:blob :in) (:clob :in)))))
+  (let ((stm (prepare-statement 
+              con "update type_test set t_longblob =?, t_longtext=? where id =1" 
+              (:blob :in) (:clob :in))))
     (exec-prepared-update stm 
-                        (List 
-                         (make-array 10000 :element-type '(unsigned-byte 8) :initial-element 33)
-                         (make-string 100001 :initial-element #\o))))
-  (commit con))
+                          (make-array 10000 :element-type '(unsigned-byte 8) 
+                                      :initial-element 33)
+                          (make-string 100001 :initial-element #\o)))
+(commit con))
 
 
 (defun mysql-test1 (con)
@@ -133,12 +135,12 @@ t_LONGTEXT longtext
     (exec-update con "delete from type_test where id=99")
     (with-prepared-statement (stm con 
                                   "insert into type_test (id,t_varchar) values (99,?)"
-                                  '((:string :in)))
-      (exec-prepared-update stm (list str)))
+                                  '(:string :in))
+      (exec-prepared-update stm str))
   (with-prepared-statement (stm con 
-                                "select t_varchar from type_test where id=99" ())
-    (let ((res (exec-prepared-query stm '())))
-    (assert (string= (caar res) str))))))
+                                "select t_varchar from type_test where id=99" )
+    (let ((res (exec-prepared-query stm )))
+      (assert (string= (caar res) str))))))
 
 
 (defun mysql-test3 (con)
@@ -147,8 +149,8 @@ t_LONGTEXT longtext
     (exec-update con "delete from type_test where id=99")
     (with-prepared-statement (stm con 
                                   "insert into type_test (id,t_datetime) values(99,?)"
-                                  '((:date :in)))
-      (exec-prepared-update stm (list "3323283742")))
+                                  '(:date :in))
+      (exec-prepared-update stm "3323283742"))
     (let ((res (exec-query con "select  DATE_ADD(t_datetime, INTERVAL 1 DAY) 
                                 from type_test where id =99")))
       (assert (equal (parse-integer (caar res)) (+ 86400 3323283742))))))
@@ -156,8 +158,8 @@ t_LONGTEXT longtext
 (defun mysql-test4 (con)
   (exec-update con "delete from type_test where id=99")
   (with-prepared-statement (stm con "insert into type_test (id,t_double) values(99,?)" 
-                                '((:double :in)))
-    (exec-prepared-update stm '(1.8)))
+                                '(:double :in))
+    (exec-prepared-update stm 1.8))
   (let ((res (exec-query con "select t_double+1 from type_test where id=99")))
     (assert (<= (abs (- (caar res) 2.8d0)) 1d-7))))
 
@@ -167,7 +169,7 @@ t_LONGTEXT longtext
   (exec-update con "delete from type_test")
   (commit con)
   (with-prepared-statement (stm con "insert into type_test (id,t_LONGTEXT) values(?,?)" 
-                                '((:integer :in) (:clob :in)))
+                                '(:integer :in) (:clob :in))
     (let ((mp plain-odbc::*max-precision*))
       (dolist (len (list 0 1 2 3 4 5 900 9000 8192 8000 
                          (1- mp) 
@@ -177,7 +179,7 @@ t_LONGTEXT longtext
                          (1- (* 2 mp))
                          (1+ (* 2 mp))))
         (let ((string (make-funny-string len)))
-          (exec-prepared-update stm (list len string))
+          (exec-prepared-update stm len string)
           (let ((res (exec-query con (format nil "select t_longtext from type_test where id=~A" len))))
           (assert (equal res
                          (list (list string)))))))))

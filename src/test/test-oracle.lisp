@@ -58,11 +58,12 @@ create table type_test (
       t_raw =hextoraw('11223344556677889900')
     where id =1")
   (exec-query con "select * from type_test")
-  (let ((stm (prepare-statement con "update type_test set t_blob=?,t_clob=? where id =1" '((:blob :in) (:clob :in)))))
+  (let ((stm (prepare-statement 
+              con "update type_test set t_blob=?,t_clob=? where id =1" 
+              '(:blob :in) '(:clob :in))))
   (exec-prepared-update stm 
-                        (List 
                          (make-array 10000 :element-type '(unsigned-byte 8) :initial-element 33)
-                         (make-string 100001 :initial-element #\o))))
+                         (make-string 100001 :initial-element #\o)))
   (commit con))
 
  
@@ -83,9 +84,9 @@ create table type_test (
  "))
   (commit con)
   (let ((stm (prepare-statement con "{call TEST99(?,?)}" 
-                                '((:integer :in) 
-                                  (:integer :out)))))
-    (assert (= 2 (first (exec-prepared-command stm (list 1)))))
+                                '(:integer :in) 
+                                '(:integer :out))))
+    (assert (= 2 (first (exec-prepared-command stm 1))))
     (free-statement stm)))
 
 
@@ -99,10 +100,10 @@ create table type_test (
  "))
   (commit con)
   (let ((stm (prepare-statement con "{call TEST99(?,?)}" 
-                                '((:string :in) 
-                                  (:string :out)))))
+                                '(:string :in) 
+                                '(:string :out))))
     (let ((str "lölkälkäölkälhjajhgfsjgakjhgfjfjhgffdtrtreztr"))
-      (assert (equal str (first (exec-prepared-command stm (list str)))))
+      (assert (equal str (first (exec-prepared-command stm str))))
       (free-statement stm)))
   (commit con))
 
@@ -121,8 +122,9 @@ create table type_test (
   "))  
       (with-prepared-statement 
           (stm con "{call TEST99(?,?)}" 
-               '((:date :in) (:date :out)))
-        (let ((res (exec-prepared-command stm (list "3323283742"))))
+               '(:date :in) 
+               '(:date :out))
+        (let ((res (exec-prepared-command stm "3323283742")))
           (assert (equal res (list (write-to-string (+ 3323283742 86400))))))))
     (commit con)))
 
@@ -133,8 +135,9 @@ create table type_test (
    create procedure TEST99 (a in out varchar2, b in out varchar2) as
     x varchar2(1000); begin x:=a;a:=b;b:=x; end;"))
   (with-prepared-statement (stm con "{call TEST99(?,?)}" 
-                                '((:string :inout) (:string :inout)))
-    (let ((res (exec-prepared-command stm (list "abc" "xyz"))))
+                                '(:string :inout) 
+                                '(:string :inout))
+    (let ((res (exec-prepared-command stm "abc" "xyz")))
       (assert (equal res (list "xyz" "abc"))))))
  
 
@@ -147,9 +150,10 @@ create table type_test (
    end;
    "))
   (with-prepared-statement (stm con "{call TEST99(?,?)}" 
-                                '((:binary :in) (:binary :out)))
+                                '(:binary :in) 
+                                '(:binary :out))
     (let* ((guid (caar (exec-query con "select sys_guid() from dual")))
-           (res (exec-prepared-command stm (list guid))))
+           (res (exec-prepared-command stm guid)))
       (assert (equalp guid (first res))))
     (commit con)))
 
@@ -166,8 +170,8 @@ create table type_test (
      b:=a+2;
     end;
     "))
-    (with-prepared-statement (stm con "{call TEST99(?,?)}" '(:date (:date :out)))
-      (let ((res (exec-prepared-command stm '((:date 2003 3 4)))))
+    (with-prepared-statement (stm con "{call TEST99(?,?)}" ':date '(:date :out))
+      (let ((res (exec-prepared-command stm '(:date 2003 3 4))))
         (assert (equal res '((:date 2003 3 6 0 0 0))))))
     (let ((res (exec-query con "
       select to_date('8.6.2005','dd.mm.yyyy') -1.0 / (86400-1) from dual")))
@@ -197,8 +201,8 @@ create table type_test (
   (exec-command con "create table testtab99 (id integer, txt nvarchar2(2000))")
   (let ((str (coerce (list #\a #\j (code-char 1000) (code-char 2000) #\o) 'string)))
   (with-prepared-statement (stm con "insert into testtab99 (id,txt) values(?,?)"
-                                '((:integer :in) (:unicode-string :in)))
-    (exec-prepared-update stm (list 1 str)))
+                                '(:integer :in) '(:unicode-string :in))
+    (exec-prepared-update stm 1 str))
   (let ((res (exec-query con "select txt from testtab99 where id =1")))
     (assert (equal (list str) res)))))
 
@@ -211,9 +215,8 @@ create table type_test (
   (with-prepared-statement (stm con "
           select to_char(?,'yyyy-mm-dd hh24:mi:ss')
           from dual" 
-                                '((:date :in)))
-    (let ((res (exec-prepared-query stm (list 
-                                         (encode-universal-time 1 2 3 13 10 2005)))))
+                                '(:date :in))
+    (let ((res (exec-prepared-query stm (encode-universal-time 1 2 3 13 10 2005))))
       (assert (equalp "2005-10-13 03:02:01" (caar res))))))
 
 (defun ora-test11(con)
@@ -231,9 +234,9 @@ create table type_test (
      end;"))
   (with-prepared-statement (stm con 
                                 "{call test99_pkg.test_cursor(?,?)}" 
-                                '((:string :in )))
+                                '(:string :in ))
     (let ((str "just a string"))
-      (let ((res (exec-prepared-query stm (list str))))
+      (let ((res (exec-prepared-query stm str)))
         (assert (equal res (list (list str "1234567890"))))))))
 
        

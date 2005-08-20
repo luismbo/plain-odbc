@@ -398,6 +398,7 @@ Unbounded array access on untyped pointers are dealt with
 
 (defvar *module-translations*
   (list #+win32 (cons "odbc" "odbc32.dll")
+        #+unix (cons "odbc" "libodbc.so")
 	(cons nil :default))
   "Set this to an alist of (module.path) of libraries to use.")
 ;(setq uffi::*module-translations* ())
@@ -565,5 +566,20 @@ Unbounded array access on untyped pointers are dealt with
                          obj (ffi:parse-c-type (list  'ffi:c-array 'character length))))))
 
 
-(export '(convert-to-foreign-string convert-from-foreign-string def-array-pointer deref-array ))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun size-of-foreign-type (type)
+    #+clisp (ffi:sizeof (if (keywordp type) (convert-uffi-type type nil) type))
+    ))
+
+
+
+(export '(convert-to-foreign-string 
+          convert-from-foreign-string 
+          def-array-pointer 
+          deref-array 
+          size-of-foreign-type))
+
+
+
 ;;;; EoF

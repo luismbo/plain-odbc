@@ -54,9 +54,6 @@
       param)))
 
 (defun bind-parameter (hstmt pos param)
- #+ignore  
- (setf (slot-value param 'value-ptr) 
-         (%new-ptr :ptr (slot-value param 'buffer-length)))
   (setf (slot-value param 'ind-ptr) 
           (uffi:allocate-foreign-object :long))
   (%sql-bind-parameter 
