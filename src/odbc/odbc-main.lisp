@@ -349,7 +349,7 @@
               (unbind-columns query)
               (unless (%sql-more-results (hstmt query))
                 (return))))
-          (let ((return-parameters nil #+ignore (get-parameters query)))
+          (let ((return-parameters (get-parameters query)))
             (values row-count (nreverse res-list) return-parameters))))
         (free-query query)
         )))
@@ -384,8 +384,8 @@
 
 (defun exec-command (connection sql &rest parameter-list)
   (exec-command* connection sql parameter-list))
+ 
 
-  
 (defmethod prepare-statement ((connection odbc-connection) sql &rest parameter-list)
   (with-slots (hdbc) connection
     (let* ((query (make-prepared-statement connection))
