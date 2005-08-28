@@ -8,8 +8,6 @@
 
 (in-package :plain-odbc)
 
-
-
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defvar *odbc-library-file* 
     #+(and clisp unix) "libodbc.so"
