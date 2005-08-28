@@ -106,7 +106,7 @@ t_LONGTEXT longtext
     )
   (let ((stm (prepare-statement 
               con "update type_test set t_longblob =?, t_longtext=? where id =1" 
-              (:blob :in) (:clob :in))))
+              '(:blob :in) '(:clob :in))))
     (exec-prepared-update stm 
                           (make-array 10000 :element-type '(unsigned-byte 8) 
                                       :initial-element 33)
@@ -169,7 +169,7 @@ t_LONGTEXT longtext
   (exec-update con "delete from type_test")
   (commit con)
   (with-prepared-statement (stm con "insert into type_test (id,t_LONGTEXT) values(?,?)" 
-                                '(:integer :in) (:clob :in))
+                                '(:integer :in) '(:clob :in))
     (let ((mp plain-odbc::*max-precision*))
       (dolist (len (list 0 1 2 3 4 5 900 9000 8192 8000 
                          (1- mp) 
