@@ -1,17 +1,17 @@
 ;;; -*- Mode: Lisp -*-
 
-
-;;; 
 #+clisp
 (asdf:defsystem "uffi"
-    :pathname "./src/uffi-clisp/"
-    :components ((:file "uffi"))) 
+    :components (
+                 (:module "clisp-uffi"
+                          :pathname "src/uffi-clisp/"
+                          :components 
+                          ((:file "uffi")))))
 
 
 
 (asdf:defsystem "plain-odbc"
   ;:package :cl-user
-  ;:binary-pathname (translate-logical-pathname "plain-odbc:bin;")
   
   ;:source-extension "lisp"
   :components (
