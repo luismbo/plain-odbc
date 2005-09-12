@@ -420,7 +420,13 @@ Unbounded array access on untyped pointers are dealt with
     (warn "No UFFI module name for library ~A" name))
   ;; We could load the library, but here we can return T/NIL
   ;; and defer loading to def-function
-  (assoc module *module-translations* :test #'equal))
+  (if
+      (assoc module *module-translations* :test #'equal)
+    t
+    (progn 
+      (push (cons module name) *module-translations*)
+      t
+    )))
 
 ;;;; -------------------------------- Functions
 
