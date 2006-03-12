@@ -6,20 +6,22 @@
 (export '(run-oracle-tests))
 
 (defun run-oracle-tests (con)
-  (oracle-type-test con)
-  (ora-test1 con)
-  (ora-test2 con)
-  (ora-test3 con)
-  (ora-test4 con)
-  (ora-test5 con)
-  (ora-test6 con)
-  (ora-test7 con)
-  #+ignore  ;; unicode support does not work for oracle
-  (ora-test8 con)
-  (ora-test9 con)
-  (ora-test10 con)
-  (ora-test11 con)
-  )
+  (dolist (sym '(oracle-type-test
+                 ora-test1 
+                 ora-test2 
+                 ora-test3 
+                 ora-test4 
+                 ora-test5 
+                 ora-test6 
+                 ora-test7 
+                 #+ignore  ;; unicode support does not work for oracle
+                 ora-test8 
+                 ora-test9 
+                 ora-test10 
+                 ora-test11 
+                 ))
+    (pprint sym)
+    (funcall sym con)))
   
  
 ; this function replaces in a string every (code-char 13)  
