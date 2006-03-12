@@ -1,19 +1,6 @@
 ;;; -*- Mode: Lisp -*-
 
-#+clisp
-(asdf:defsystem "uffi"
-    :components (
-                 (:module "clisp-uffi"
-                          :pathname "src/uffi-clisp/"
-                          :components 
-                          ((:file "uffi")))))
-
-
-
 (asdf:defsystem "plain-odbc"
-  ;:package :cl-user
-  
-  ;:source-extension "lisp"
   :components (
                (:module "odbc-stuff"
                         :pathname "src/odbc/"
@@ -21,7 +8,7 @@
                         ((:file "plain-odbc-package")
                          (:file "odbc-constants")
                          (:file "global")
-                         (:file "uffi-support")
+                         (:file "cffi-support")
                          (:file "odbc-ff-interface")
                          (:file "odbc-functions")
                          (:file "parameter")
@@ -31,4 +18,4 @@
                         :serial t
                         ))
   :serial t
-  :depends-on (:uffi))
+  :depends-on (:cffi))

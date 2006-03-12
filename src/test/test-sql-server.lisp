@@ -7,42 +7,31 @@
 
 
 (defun run-sql-server-tests (con)
-  (ss-type-test con)
-  (ss-test1 con)
-  (ss-test2 con)
-  (ss-test3 con)
-  (ss-test4 con)
-  (ss-test5 con)
-  (ss-test6 con)
-  (ss-test7 con)
-  (ss-test8 con)
-  (ss-test8a con)
-  (ss-test9 con)
-  (ss-test10 con)
-  (ss-test11 con)
-  (pprint 11)
-  (ss-test12 con)
-  (pprint 12)
-  (ss-test13 con)
-  (pprint 13)
-  (ss-test14 con)
-  (pprint 14)
-  (ss-test15 con)
-  (pprint 15)
-  (ss-test16 con)
-  (pprint 16)
-  (ss-test17 con)
-  (pprint 17)
-  (ss-test18 con)
-  (pprint 18)
-  (ss-test19 con)
-  (pprint 19)
-  (ss-test20 con)
-  (pprint 20)
-  (ss-test21 con)
-  (pprint 21)
-  (ss-test22 con)
-  (pprint 22))
+  (dolist (sym '(ss-type-test 
+                 ss-test1 
+                 ss-test2 
+                 ss-test3 
+                 ss-test4 
+                 ss-test5 
+                 ss-test6   ss-test7 
+                 ss-test8 
+                 ss-test8a 
+                 ss-test9 
+                 ss-test10 
+                 ss-test11 
+                 ss-test12 
+                 ss-test13 
+                 ss-test14 
+                 ss-test15 
+                 ss-test16 
+                 ss-test17 
+                 ss-test18 
+                 ss-test19 
+                 ss-test20 
+                 ss-test21 
+                 ss-test22))
+    (pprint sym)
+    (funcall sym con)))
 
 (defparameter *sql-server-type_test-ddl* "
 CREATE TABLE [type_test] (
