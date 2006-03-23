@@ -131,4 +131,12 @@ The cursor can be retrieved with following lisp code:
       (exec-prepared-query stm (list str))))
 </pre>
 Note that the cursor parameter must be declared in/out. If a parameter ist supplied for the cursor parameter, it still works. <em>This needs more investigations.</em>
+
+<h4>Oracle TIMESTAMP datatype in 9.2, 10g</h4>
+Windows: For the Oracle-Driver, queries on TIMESTAMP columns return SQL_NULL_TYPE. Normally this would be retrieved
+as String. But the program coredumps at the first fetch.
+The Microsoft driver coredumps earlier, namely when the sqlexec is executed.<br>
+Columns of type SQL_NULL_TYPE cause an error, the offending column has to be removed from the query.
+At least we prevent the coredump of the Oracle driver.<br>
+I am pretty sure that this is a driver bug, Microsoft Access coredumps as well in similar situations.
 </html>

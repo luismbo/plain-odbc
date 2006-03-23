@@ -11,7 +11,10 @@
  
 (in-package :plain-odbc)
 
-(define-foreign-library :odbc (t (:default "odbc32"  )))
+(define-foreign-library :odbc 
+    (:windows (:default "odbc32"))
+  (:unix (:default "libodbc")))
+
 (load-foreign-library :odbc)
 
 (defctype sql-handle :pointer)

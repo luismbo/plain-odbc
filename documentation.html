@@ -20,23 +20,19 @@
       <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/odbc/htm/dasdkodbcoverview.asp">
         ODBC documentation from Microsoft</a>.
     </p>
-    <h2>Platforms</h2>
+    <h2>Platforms, not up to date</h2>
     <p>
-      Plain-odbc uses UFFI to interface to the odbc libaries. I have tested it on 
-      Windows 
-      with Allegro CL Trial Edition (6.2), LispWorks Personal Edition (4.4) and 
-      CLISP 2.34. An implementation of UFFI (that just works) is included. 
-      It is based on the UFFI implementation of J&ouml;rg H&ouml;hle which can 
-      be found in the patches setion of 
-      <a href="http://sourceforge.net/projects/clisp">
-        SourceForge Website of CLISP</a>.
+      Plain-odbc uses CFFI to interface to the odbc libaries. I have tested it on 
+      Windows LispWorks Personal Edition (4.4) and 
+      CLISP 2.38. I am too lazy to download the new version of
+      an "Allegro CL Trial Edition", but I am confident that this should also work.
       On Windows ODBC connections to Oracle and SQL-Server work. 
       On Linux plain-odbc has been tested with CLISP and MySQL.
     </p>
     
     <h2> Using plain-odbc, Examples </h2>
     You must load plain-odbc into lisp. plain-odbc is an asdf module, 
-    so you need asdf. Make sure that asdf is able to find UFFI and plain-odbc.
+    so you need asdf. Make sure that asdf is able to find CFFI and plain-odbc.
     <pre>(asdf:oos 'asdf:load-op :plain-odbc)
     </pre>
     Then you have to create a connection to a database. The simplest way is 

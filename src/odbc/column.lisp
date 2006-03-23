@@ -56,6 +56,10 @@
   (multiple-value-bind (column-name sql-type column-size decimal-digits nullable)
       ;; in odbc, columns are 1 based, in lisp they are 0 based
       (%describe-column hstmt (+ pos 1))
+    ;; when retrieving TIMESTAMP from oracle databases we get SQL_NULL_TYPE as sql-type
+    ;; and the when we fetch a coredump
+    (when (eql sql-type $SQL_TYPE_NULL)
+      (error "Column ~A, name ~A is of type SQL_NULL_TYPE, remove the column from the query." (+ pos 1) column-name))
     (multiple-value-bind (column-class args)
         (column-info-to-class-and-args sql-type column-size decimal-digits)
       (let ((column (make-instance column-class
