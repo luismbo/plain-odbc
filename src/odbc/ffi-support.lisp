@@ -10,7 +10,7 @@
 
 (cffi-0.10-or-0.9
  (defun get-string (ptr length) 
-   (cffi:foreign-string-to-lisp ptr :count length :encoding :iso-8859-1)
+   (cffi:foreign-string-to-lisp ptr :count length :encoding *client-encoding*)
    )
  (defun get-string (ptr length)
    (cffi:foreign-string-to-lisp ptr length nil)
@@ -19,13 +19,13 @@
  
 (cffi-0.10-or-0.9
  (defun get-string-nts (ptr)
-   (cffi:foreign-string-to-lisp ptr :max-chars MOST-POSITIVE-FIXNUM :encoding :iso-8859-1))
+   (cffi:foreign-string-to-lisp ptr :max-chars MOST-POSITIVE-FIXNUM :encoding *client-encoding*))
  (defun get-string-nts (ptr)
    (cffi:foreign-string-to-lisp ptr MOST-POSITIVE-FIXNUM t)))
 
 (cffi-0.10-or-0.9
  (defun put-string (ptr vector)
-   (cffi:lisp-string-to-foreign vector ptr (1+ (length vector)) :encoding :iso-8859-1))
+   (cffi:lisp-string-to-foreign vector ptr (1+ (length vector)) :encoding *client-encoding*))
  (defun put-string (ptr vector)
    (cffi:lisp-string-to-foreign vector ptr (1+ (length vector)))))
 
@@ -35,7 +35,7 @@
 
 (cffi-0.10-or-0.9
  (defmacro with-foreign-string-alloc ((ptr text) &body body)
-   `(cffi:with-foreign-string (,ptr ,text :encoding :iso-8859-1)
+   `(cffi:with-foreign-string (,ptr ,text :encoding *client-encoding*)
                               ,@body))
  
  (defmacro with-foreign-string-alloc ((ptr text) &body body)

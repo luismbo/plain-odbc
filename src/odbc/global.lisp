@@ -31,3 +31,5 @@
 
 (defvar  *DEFAULT-BINARY-PARAMETER-SIZE* 8001)
 
+(defvar *client-encoding* :utf-8)
+

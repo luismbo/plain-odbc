@@ -219,7 +219,7 @@ LIST-UNIVERSAL-TIME
     </pre>
     <h2>Database NULL</h2>
     The database NULL value is mapped to <tt>NIL</tt>.
-    <h2> Parameters </h2>
+    <h2>Parameters</h2>
     <p>
       Plain-odbc supports the prepared statements of ODBC. In order to create 
       a prepared statement, the SQL text and the formal parameters must be 
@@ -369,6 +369,17 @@ mysql_free_result(result);<br>
         the value to universal time.
     </ul>
 
+    <h3>Encoding</h3>
+    <p>
+      The library can deal with UTF-8 fine, which is the default
+      locale on most of today's systems. If your system does not use
+      UTF-8, then you might need to set *client-encoding* to an
+      appropriate locale (like :iso-8859-1) instead of :utf-8. In case
+      of Oracle databases, you might also consider setting the
+      appropriate NLS_LANG and/or NLS_CHARACTER_SET settings so that
+      the driver does the correct conversion for your system
+      configuration.
+    </p>
 
 <h2>Functions / Methods</h2>
     Currently most functions are implemented as methods, but you should not 
