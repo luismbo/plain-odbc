@@ -160,7 +160,7 @@ t_blob lo)
 
 
 (defun pgsql-test3 (con)
-  (let ((*universal-time-to-date-dataype* 'write-to-string)
+  (let ((*universal-time-to-date-datatype* 'write-to-string)
         (*date-datatype-to-universal-time* 'parse-integer))
     (exec-update con "delete from type_test where id=99")
     (with-prepared-statement (stm con 
@@ -248,7 +248,7 @@ CREATE function test99 (p1 int, p2 out INT) returns integer as $$
 
 
 (defun pgsql-test7 (con)
-   (let ((*universal-time-to-date-dataype* 'universal-time-list)
+   (let ((*universal-time-to-date-datatype* 'universal-time-list)
          (*date-datatype-to-universal-time* 'list-universal-time)
          (*date-type-predicate* 'date-lisp-p))
      (let ((res (exec-query con "select cast(? as date) +interval '1 day'" 

@@ -167,7 +167,7 @@ create table type_test (
 
 
 (defun ora-test3 (con)
-  (let ((*universal-time-to-date-dataype* 'write-to-string)
+  (let ((*universal-time-to-date-datatype* 'write-to-string)
         (*date-datatype-to-universal-time* 'parse-integer))
     (ora-drop-test-proc con "TEST99")
     (let ((a (caar (exec-query con "select sysdate from dual"))))
@@ -217,7 +217,7 @@ create table type_test (
 
 
 (defun ora-test6 (con)
-  (let ((*universal-time-to-date-dataype* 'universal-time-list)
+  (let ((*universal-time-to-date-datatype* 'universal-time-list)
         (*date-datatype-to-universal-time* 'list-universal-time))
 
     (ora-drop-test-proc con "TEST99")

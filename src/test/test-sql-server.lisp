@@ -194,7 +194,7 @@ CREATE TABLE [type_test] (
   (commit con))
 
 (defun ss-test3 (con)
-  (let ((*universal-time-to-date-dataype* 'write-to-string)
+  (let ((*universal-time-to-date-datatype* 'write-to-string)
         (*date-datatype-to-universal-time* 'parse-integer))
     (ss-drop-test-proc con "test99")
     (let ((a (caar (exec-query con "select getdate()"))))
@@ -232,7 +232,7 @@ CREATE TABLE [type_test] (
     (commit con)))
 
 (defun ss-test6 (con)
-  (let ((*universal-time-to-date-dataype* 'universal-time-list)
+  (let ((*universal-time-to-date-datatype* 'universal-time-list)
         (*date-datatype-to-universal-time* 'list-universal-time))
 
     (ss-drop-test-proc con "test99")
@@ -470,7 +470,7 @@ CREATE TABLE [type_test] (
 
 
 (defun ss-test21 (con)
-   (let ((*universal-time-to-date-dataype* 'universal-time-list)
+   (let ((*universal-time-to-date-datatype* 'universal-time-list)
          (*date-datatype-to-universal-time* 'list-universal-time)
          (*date-type-predicate* 'date-lisp-p))
      (let ((res (exec-query con "select dateadd(d,1,?)" 

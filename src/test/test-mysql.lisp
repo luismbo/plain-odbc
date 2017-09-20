@@ -185,7 +185,7 @@ t_LONGTEXT longtext
 
 
 (defun mysql-test3 (con)
-  (let ((*universal-time-to-date-dataype* 'write-to-string)
+  (let ((*universal-time-to-date-datatype* 'write-to-string)
         (*date-datatype-to-universal-time* 'parse-integer))
     (exec-update con "delete from type_test where id=99")
     (with-prepared-statement (stm con 
@@ -296,7 +296,7 @@ CREATE PROCEDURE test99 (in p1 int, out p2 INT)
     (free-statement stm)))
 
 (defun mysql-test7 (con)
-   (let ((*universal-time-to-date-dataype* 'universal-time-list)
+   (let ((*universal-time-to-date-datatype* 'universal-time-list)
          (*date-datatype-to-universal-time* 'list-universal-time)
          (*date-type-predicate* 'date-lisp-p))
      (let ((res (exec-query con "select date_add(cast(? as date),interval 1 day)" 

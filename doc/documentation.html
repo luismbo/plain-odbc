@@ -167,7 +167,7 @@ NIL
     SQL_C_TYPE_TIMESTAMP. 
     The conversion to an explicit date datatype is done by the 
     values of the variables 
-    <tt>*universal-time-to-date-dataype*</tt>, 
+    <tt>*universal-time-to-date-datatype*</tt>,
     <tt>*date-datatype-to-universal-time*</tt>. 
     The default values of these variables is the function <tt>identity</tt>.
     The value of the variable <tt>*date-type-predicate*</tt> is used to 
@@ -207,7 +207,7 @@ UNIVERSAL-TIME-LIST
   (apply 'encode-universal-time (reverse list)))
 
 LIST-UNIVERSAL-TIME
-[67]> (let ((*universal-time-to-date-dataype* 'universal-time-list)
+[67]> (let ((*universal-time-to-date-datatype* 'universal-time-list)
       (*date-datatype-to-universal-time* 'list-universal-time))
   (exec-query *con* "
      select to_date('12.3.2005 13:56:34','dd.mm.yyyy hh24:mi:ss') as date_,

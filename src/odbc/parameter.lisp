@@ -259,7 +259,7 @@
   (let ((len (cffi:mem-ref (slot-value param 'ind-ptr) 'sql-len)))
     (if (= len $SQL_NULL_DATA)
         nil
-        (funcall *universal-time-to-date-dataype*
+        (funcall *universal-time-to-date-datatype*
                  (timestamp-to-universal-time (slot-value param 'value-ptr))))))
 
 
