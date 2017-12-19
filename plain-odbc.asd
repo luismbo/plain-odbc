@@ -18,4 +18,5 @@
                         :serial t
                         ))
   :serial t
-  :depends-on (:cffi))
+  :depends-on (:alexandria
+               :cffi))
