@@ -322,7 +322,7 @@
   (declare (ignore args)) 
   (setf (slot-value column 'c-type) $SQL_C_TIMESTAMP)
   (setf (slot-value column 'buffer-length) 
-          (cffi:foreign-type-size 'sql-c-timestamp))
+          (cffi:foreign-type-size '(:struct sql-c-timestamp)))
   (setf (slot-value column 'value-ptr) (cffi:foreign-alloc :uchar :count 32)))
 
 (defmethod get-column-value ((column date-column))
@@ -341,7 +341,7 @@
   (declare (ignore args)) 
   (setf (slot-value column 'c-type) $SQL_C_TIMESTAMP)
   (setf (slot-value column 'buffer-length) 
-          (cffi:foreign-type-size 'sql-c-timestamp))
+          (cffi:foreign-type-size '(:struct sql-c-timestamp)))
   (setf (slot-value column 'value-ptr) (cffi:foreign-alloc :uchar :count 32)))
 
 (defmethod get-column-value ((column gd-date-column))
