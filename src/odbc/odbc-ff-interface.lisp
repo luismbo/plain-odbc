@@ -17,250 +17,261 @@
 
 (load-foreign-library :odbc)
 
-(defctype sql-handle :pointer)
-(defctype *sql-handle :pointer)
-(defctype RETCODE :short)
-(defctype *short :pointer)
-(defctype *sdword :pointer)
-(defctype *sword :pointer)
-(defctype *ulong :pointer)
-
-
 (defctype string-ptr :pointer)
 
 
 
-(defcfun "SQLAllocEnv" retcode (penv *sql-handle))
+;;;; dso-
 
-(defcfun "SQLAllocConnect" retcode 
-  (henv sql-handle)          ; HENV        henv
-  (*phdbc *sql-handle))    ; HDBC   FAR *phdbc
-   
-(defcfun "SQLConnect" retcode
-  (hdbc sql-handle)          ; HDBC        hdbc
-  (*szDSN string-ptr)        ; UCHAR  FAR *szDSN
-  (cbDSN :short)             ; SWORD       cbDSN
-  (*szUID string-ptr)        ; UCHAR  FAR *szUID 
-  (cbUID :short)             ; SWORD       cbUID
-  (*szAuthStr string-ptr)    ; UCHAR  FAR *szAuthStr
-  (cbAuthStr :short)         ; SWORD       cbAuthStr
-  )
-  
-  (defcfun "SQLDriverConnect" retcode
-    (hdbc sql-handle)          ; HDBC        hdbc
-    (hwnd sql-handle)          ; SQLHWND     hwnd
+(defctype sql-small-int :int16)
+(defctype sql-u-small-int :uint16)
+(defctype sql-integer :int32)
+(defctype sql-u-integer :uint32)
+(defctype sql-pointer :pointer)
+(defctype sql-len sql-integer)
+(defctype sql-u-len sql-u-integer)
+(defctype sql-return sql-small-int)
+
+(defctype *sql-small-int :pointer)
+(defctype *sql-integer :pointer)
+(defctype *sql-len :pointer)
+(defctype *sql-u-len :pointer)
+
+(defctype sql-handle :pointer)
+(defctype sql-h-env sql-handle)
+(defctype sql-h-dbc sql-handle)
+(defctype sql-h-stmt sql-handle)
+(defctype sql-h-wnd :pointer)
+
+(defctype *sql-h-env :pointer)
+(defctype *sql-h-dbc :pointer)
+(defctype *sql-h-stmt :pointer)
+
+(defmacro defsqlfun (name (&rest args))
+  `(defcfun ,name sql-return ,@args))
+
+;;;; -dso
+
+
+
+(defsqlfun "SQLAllocEnv"
+    ((penv *sql-h-env)))
+
+(defsqlfun "SQLAllocConnect"
+    ((henv sql-h-env)                   ; HENV        henv
+     (*phdbc *sql-h-dbc)))              ; HDBC   FAR *phdbc
+
+(defsqlfun "SQLDriverConnect"
+    ((hdbc sql-h-dbc)                   ; HDBC        hdbc
+     (hwnd sql-h-wnd)                   ; SQLHWND     hwnd
                                         ;(*szConnStrIn string-ptr)  ; UCHAR  FAR *szConnStrIn
-    (*szConnStrIn string-ptr)  ; UCHAR  FAR *szConnStrIn
-    (cbConnStrIn :short)       ; SWORD       cbConnStrIn
+     (*szConnStrIn string-ptr)          ; UCHAR  FAR *szConnStrIn
+     (cbConnStrIn sql-small-int)        ; SWORD       cbConnStrIn
                                         ;(*szConnStrOut string-ptr) ; UCHAR  FAR *szConnStrOut
-     (*szConnStrOut string-ptr) ; UCHAR  FAR *szConnStrOut
-     (cbConnStrOutMax :short)   ; SWORD       cbConnStrOutMaxw 
-     (*pcbConnStrOut *short)      ; SWORD  FAR *pcbConnStrOut
-     (fDriverCompletion :unsigned-short) ; UWORD       fDriverCompletion
-     )
-   
-  (defcfun "SQLDisconnect" retcode
-    (hdbc sql-handle))         ; HDBC        hdbc
-  
-  (defcfun "SQLAllocStmt" retcode 
-    (hdbc sql-handle)          ; HDBC        hdbc
-    (*phstmt *sql-handle))   ; HSTMT  FAR *phstmt
+     (*szConnStrOut string-ptr)         ; UCHAR  FAR *szConnStrOut
+     (cbConnStrOutMax sql-small-int)    ; SWORD       cbConnStrOutMaxw
+     (*pcbConnStrOut *sql-small-int)    ; SWORD  FAR *pcbConnStrOut
+     (fDriverCompletion :unsigned-short))) ; UWORD       fDriverCompletion
+
+(defsqlfun "SQLDisconnect"
+    ((hdbc sql-h-dbc)))                 ; HDBC        hdbc
+
+(defsqlfun "SQLAllocStmt"
+    ((hdbc sql-h-dbc)                   ; HDBC        hdbc
+     (*phstmt *sql-h-stmt)))            ; HSTMT  FAR *phstmt
 
 
-  
-  (defcfun "SQLGetInfo" retcode
-    (hdbc sql-handle)          ; HDBC        hdbc
-    (fInfoType :short)         ; UWORD       fInfoType
-    (rgbInfoValue :pointer)        ; PTR         rgbInfoValue
-    (cbInfoValueMax :short)    ; SWORD       cbInfoValueMax
-    (*pcbInfoValue :pointer)       ; SWORD  FAR *pcbInfoValue
-     )
 
-  (defcfun ("SQLGetInfo" SQLGetInfo-Str) retcode 
-    (hdbc sql-handle)          ; HDBC        hdbc
-     (fInfoType :short)         ; UWORD       fInfoType
-     (rgbInfoValue string-ptr)        ; PTR         rgbInfoValue
-     (cbInfoValueMax :short)    ; SWORD       cbInfoValueMax
-     (*pcbInfoValue :pointer)       ; SWORD  FAR *pcbInfoValue
-     )
+(defsqlfun "SQLGetInfo"
+    ((hdbc sql-h-dbc)                   ; HDBC        hdbc
+     (fInfoType sql-u-small-int)        ; UWORD       fInfoType
+     (rgbInfoValue sql-pointer)         ; PTR         rgbInfoValue
+     (cbInfoValueMax sql-small-int)     ; SWORD       cbInfoValueMax
+     (*pcbInfoValue *sql-small-int)))   ; SWORD  FAR *pcbInfoValue
 
 
-  (defcfun "SQLPrepare" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (*szSqlStr string-ptr)     ; UCHAR  FAR *szSqlStr
-     (cbSqlStr :long)           ; SDWORD      cbSqlStr
-     )
-
-  
-  (defcfun "SQLExecute" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     )
-
-  
-  (defcfun "SQLExecDirect" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (*szSqlStr string-ptr)     ; UCHAR  FAR *szSqlStr
-     (cbSqlStr :long)           ; SDWORD      cbSqlStr
-     )
-
-  
-  (defcfun "SQLFreeStmt" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (fOption :short))          ; UWORD       fOption
-
-  
-  (defcfun "SQLCancel" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     )
-
-  
-  (defcfun "SQLError" retcode 
-    (henv sql-handle)          ; HENV        henv
-     (hdbc sql-handle)          ; HDBC        hdbc
-     (hstmt sql-handle)         ; HSTMT       hstmt
-;     (*szSqlState string-ptr)   ; UCHAR  FAR *szSqlState
-     (*szSqlState string-ptr)   ; UCHAR  FAR *szSqlState
-     (*pfNativeError *SDWORD)      ; SDWORD FAR *pfNativeError
-;     (*szErrorMsg string-ptr)   ; UCHAR  FAR *szErrorMsg
-     (*szErrorMsg string-ptr)   ; UCHAR  FAR *szErrorMsg
-     (cbErrorMsgMax :short)     ; SWORD       cbErrorMsgMax
-     (*pcbErrorMsg *short))        ; SWORD  FAR *pcbErrorMsg
-  
+(defsqlfun ("SQLGetInfo" SQLGetInfo-Str)
+    ((hdbc sql-h-dbc)                   ; HDBC        hdbc
+     (fInfoType sql-u-small-int)        ; UWORD       fInfoType
+     (rgbInfoValue string-ptr)          ; PTR         rgbInfoValue
+     (cbInfoValueMax sql-small-int)     ; SWORD       cbInfoValueMax
+     (*pcbInfoValue *sql-small-int)))   ; SWORD  FAR *pcbInfoValue
 
 
-  (defcfun "SQLNumResultCols" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (*pccol :pointer)              ; SWORD  FAR *pccol
-     )
-
-  
-  (defcfun "SQLRowCount" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (*pcrow *sdword)              ; SDWORD FAR *pcrow
-     )
-
-  
-  (defcfun "SQLDescribeCol" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (icol :short)              ; UWORD       icol
-     (*szColName string-ptr)    ; UCHAR  FAR *szColName
-     (cbColNameMax :short)      ; SWORD       cbColNameMax
-     (*pcbColName *short)         ; SWORD  FAR *pcbColName
-     (*pfSqlType *short)          ; SWORD  FAR *pfSqlType
-     (*pcbColDef *ulong)          ; UDWORD FAR *pcbColDef
-     (*pibScale *short)           ; SWORD  FAR *pibScale
-     (*pfNullable *short)         ; SWORD  FAR *pfNullable
-     )
-
-  
-  (defcfun "SQLColAttributes" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (icol :short)              ; UWORD       icol
-     (fDescType :short)         ; UWORD       fDescType
-     (rgbDesc :pointer)             ; PTR         rgbDesc
-     (cbDescMax :short)         ; SWORD       cbDescMax
-     (*pcbDesc *sword)            ; SWORD  FAR *pcbDesc
-     (*pfDesc *sdword)             ; SDWORD FAR *pfDesc
-     )
+(defsqlfun "SQLPrepare"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (*szSqlStr string-ptr)             ; UCHAR  FAR *szSqlStr
+     (cbSqlStr sql-integer)))           ; SDWORD      cbSqlStr
 
 
-  (defcfun "SQLColumns" retcode 
-    (hstmt sql-handle)             ; HSTMT       hstmt
-     (*szTableQualifier string-ptr) ; UCHAR  FAR *szTableQualifier
-     (cbTableQualifier :short)      ; SWORD       cbTableQualifier
-     (*szTableOwner string-ptr)     ; UCHAR  FAR *szTableOwner
-     (cbTableOwner :short)          ; SWORD       cbTableOwner
-     (*szTableName string-ptr)      ; UCHAR  FAR *szTableName
-     (cbTableName :short)           ; SWORD       cbTableName
-     (*szColumnName string-ptr)     ; UCHAR  FAR *szColumnName
-     (cbColumnName :short)          ; SWORD       cbColumnName
-     )
+(defsqlfun "SQLColumns"
+    ((hstmt sql-h-stmt)
+     (CatalogName string-ptr)
+     (NameLength1 sql-small-int)
+     (SchemaName string-ptr)
+     (NameLength2 sql-small-int)
+     (TableName string-ptr)
+     (NameLength3 sql-small-int)
+     (ColumnName string-ptr)
+     (NameLength4 sql-small-int)))
 
 
-  (defcfun "SQLBindCol" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (icol :short)              ; UWORD       icol
-     (fCType :short)            ; SWORD       fCType
-     (rgbValue :pointer)            ; PTR         rgbValue
-     (cbValueMax :long)         ; SDWORD      cbValueMax
-     (*pcbValue *sdword)           ; SDWORD FAR *pcbValue
-     )
+(defsqlfun "SQLPrimaryKeys"
+    ((hstmt sql-h-stmt)
+     (catalog-name string-ptr)
+     (catalog-name-len sql-small-int)
+     (schema-name string-ptr)
+     (schema-name-len sql-small-int)
+     (table-name string-ptr)
+     (table-name-len sql-small-int)))
 
-  
-  (defcfun "SQLFetch" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     )
+(defsqlfun "SQLTables"
+    ((hstmt sql-h-stmt)
+     (catalog-name string-ptr)
+     (catalog-name-len sql-small-int)
 
-    
-  (defcfun "SQLTransact" retcode 
-    (henv sql-handle)          ; HENV        henv
-    (hdbc sql-handle)          ; HDBC        hdbc
-    (fType :short)             ; UWORD       fType ($SQL_COMMIT or $SQL_ROLLBACK)
-    )
+     (schema-name string-ptr)
+     (schema-name-len sql-small-int)
+
+     (table-name string-ptr)
+     (table-name-len sql-small-int)
+
+     (table-type string-ptr)
+     (table-type-len sql-small-int)))
+
+(defsqlfun "SQLForeignKeys" 
+  ((hstmt sql-h-stmt)
+   (catalog-name1 string-ptr)
+   (catalog-name-len1 sql-small-int)
+   (schema-name1 string-ptr)
+   (schema-name-len1 sql-small-int)
+   (table-name1 string-ptr)
+   (table-name-len1 sql-small-int)
+
+   (catalog-name2 string-ptr)
+   (catalog-name-len2 sql-small-int)
+   (schema-name2 string-ptr)
+   (schema-name-len2 sql-small-int)
+   (table-name2 string-ptr)
+   (table-name-len2 sql-small-int)))
 
 
-  ;; ODBC 2.0
-  (defcfun "SQLDescribeParam" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (ipar :short)              ; UWORD       ipar
-     (*pfSqlType *sword)          ; SWORD  FAR *pfSqlType
-     (*pcbColDef *ulong)          ; UDWORD FAR *pcbColDef
-     (*pibScale *sword)           ; SWORD  FAR *pibScale
-     (*pfNullable *sword)         ; SWORD  FAR *pfNullable
-     )
+
+
+
+(defsqlfun "SQLExecute"
+    ((hstmt sql-h-stmt)))               ; HSTMT       hstmt
+
+
+(defsqlfun "SQLExecDirect"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (*szSqlStr string-ptr)             ; UCHAR  FAR *szSqlStr
+     (cbSqlStr sql-integer)))           ; SDWORD      cbSqlStr
+
+
+
+(defsqlfun "SQLFreeStmt"
+  ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+   (fOption sql-u-small-int)))        ; UWORD       fOption
+
+(defsqlfun "SQLFreeConnect"
+  ((hdbc sql-h-dbc)))                 ; HDBC        hdbc
+
+
+(defsqlfun "SQLError"
+    ((henv sql-h-env)                   ; HENV        henv
+     (hdbc sql-h-dbc)                   ; HDBC        hdbc
+     (hstmt sql-h-stmt)                 ; HSTMT       hstmt
+                                        ;     (*szSqlState string-ptr)   ; UCHAR  FAR *szSqlState
+     (*szSqlState string-ptr)           ; UCHAR  FAR *szSqlState
+     (*pfNativeError *sql-integer)      ; SDWORD FAR *pfNativeError
+                                        ;     (*szErrorMsg string-ptr)   ; UCHAR  FAR *szErrorMsg
+     (*szErrorMsg string-ptr)           ; UCHAR  FAR *szErrorMsg
+     (cbErrorMsgMax sql-small-int)      ; SWORD       cbErrorMsgMax
+     (*pcbErrorMsg *sql-small-int)))    ; SWORD  FAR *pcbErrorMsg
+
+
+
+(defsqlfun "SQLNumResultCols"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (*pccol *sql-small-int)))          ; SWORD  FAR *pccol
+
+
+(defsqlfun "SQLRowCount"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (*pcrow *sql-len)))                ; SDWORD FAR *pcrow
+
+
+(defsqlfun "SQLDescribeCol"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (icol sql-u-small-int)             ; UWORD       icol
+     (*szColName string-ptr)            ; UCHAR  FAR *szColName
+     (cbColNameMax sql-small-int)       ; SWORD       cbColNameMax
+     (*pcbColName *sql-small-int)       ; SWORD  FAR *pcbColName
+     (*pfSqlType *sql-small-int)        ; SWORD  FAR *pfSqlType
+     (*pcbColDef *sql-u-len)            ; UDWORD FAR *pcbColDef
+     (*pibScale *sql-small-int)         ; SWORD  FAR *pibScale
+     (*pfNullable *sql-small-int)))     ; SWORD  FAR *pfNullable
+
+
+(defsqlfun "SQLBindCol"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (icol sql-u-small-int)             ; UWORD       icol
+     (fCType sql-small-int)             ; SWORD       fCType
+     (rgbValue sql-pointer)             ; PTR         rgbValue
+     (cbValueMax sql-len)               ; SDWORD      cbValueMax
+     (*pcbValue *sql-len)))             ; SDWORD FAR *pcbValue
 
   
-  ;; ODBC 2.0
-  (defcfun "SQLBindParameter" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (ipar :short)              ; UWORD       ipar
-     (fParamType :short)        ; SWORD       fParamType
-     (fCType :short)            ; SWORD       fCType
-     (fSqlType :short)          ; SWORD       fSqlType
-     (cbColDef :ulong)           ; UDWORD      cbColDef
-     (ibScale :short)           ; SWORD       ibScale
-     (rgbValue :pointer)            ; PTR         rgbValue
-     (cbValueMax :long)         ; SDWORD      cbValueMax
-     (*pcbValue *sdword)           ; SDWORD FAR *pcbValue
-     )
-
-  
-  ;; level 1
-  (defcfun "SQLGetData" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (icol :short)              ; UWORD       icol
-     (fCType :short)            ; SWORD       fCType
-     (rgbValue :pointer)            ; PTR         rgbValue
-     (cbValueMax :long)         ; SDWORD      cbValueMax
-     (*pcbValue *sdword)           ; SDWORD FAR *pcbValue
-     )
+(defsqlfun "SQLFetch"
+    ((hstmt sql-h-stmt)))               ; HSTMT       hstmt
 
 
-  (defcfun "SQLParamData" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (*prgbValue :pointer)          ; PTR    FAR *prgbValue
-     )
+(defsqlfun "SQLTransact"
+    ((henv sql-h-env)                   ; HENV        henv
+     (hdbc sql-h-dbc)                   ; HDBC        hdbc
+     (fType sql-u-small-int))) ; UWORD       fType ($SQL_COMMIT or $SQL_ROLLBACK)
 
-  
-  (defcfun "SQLPutData" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (rgbValue :pointer)            ; PTR         rgbValue
-     (cbValue :long)            ; SDWORD      cbValue
-     )
 
-  
-  (defcfun "SQLGetConnectOption" retcode 
-    (hdbc sql-handle)          ; HDBC        hdbc
-     (fOption :short)           ; UWORD       fOption
-     (pvParam :pointer)             ; PTR         pvParam
-     )
+;; ODBC 2.0
+(defsqlfun "SQLBindParameter"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (ipar sql-u-small-int)             ; UWORD       ipar
+     (fParamType sql-small-int)         ; SWORD       fParamType
+     (fCType sql-small-int)             ; SWORD       fCType
+     (fSqlType sql-small-int)           ; SWORD       fSqlType
+     (cbColDef sql-u-len)               ; UDWORD      cbColDef
+     (ibScale sql-small-int)            ; SWORD       ibScale
+     (rgbValue sql-pointer)             ; PTR         rgbValue
+     (cbValueMax sql-len)               ; SDWORD      cbValueMax
+     (*pcbValue *sql-len)))             ; SDWORD FAR *pcbValue
 
-  
-  (defcfun "SQLSetConnectOption" retcode 
-    (hdbc sql-handle)          ; HDBC        hdbc
-     (fOption :short)           ; UWORD       fOption
-     (vParam :ulong)             ; UDWORD      vParam
-     )
+
+;; level 1
+(defsqlfun "SQLGetData"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (icol sql-u-small-int)             ; UWORD       icol
+     (fCType sql-small-int)             ; SWORD       fCType
+     (rgbValue sql-pointer)             ; PTR         rgbValue
+     (cbValueMax sql-len)               ; SDWORD      cbValueMax
+     (*pcbValue *sql-len)))             ; SDWORD FAR *pcbValue
+
+
+(defsqlfun "SQLParamData"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (*prgbValue sql-pointer)))         ; PTR    FAR *prgbValue
+
+
+(defsqlfun "SQLPutData"
+    ((hstmt sql-h-stmt)                 ; HSTMT       hstmt
+     (rgbValue sql-pointer)             ; PTR         rgbValue
+     (cbValue sql-len)))                ; SDWORD      cbValue
+
+
+(defsqlfun "SQLSetConnectOption"
+    ((hdbc sql-h-dbc)                   ; HDBC        hdbc
+     (fOption sql-u-small-int)          ; UWORD       fOption
+     (vParam sql-u-len)))               ; UDWORD      vParam
 
 
 ;;; rav, 11.6.2005
@@ -276,100 +287,66 @@
 ; null-terminated character string. Note that if the Attribute argument is a 
 ; driver-specific value, the value in ValuePtr may be a signed integer. 
 
-(defcfun ("SQLSetConnectAttr" SQLSetConnectAttr_long) retcode 
-    (hdbc sql-handle)          ; HDBC        hdbc
-     (fOption :short)           ; UWORD       fOption
-     (pvParam :long)             ; UDWORD      vParam
-     (stringlength :long)
-     )
+(defsqlfun ("SQLSetConnectAttr" SQLSetConnectAttr_long)
+    ((hdbc sql-h-dbc)                   ; HDBC        hdbc
+     ;; TODO: The new def of fOption doesn't seem compatible with the
+     ;; original, but matches my headers.
+     (fOption sql-integer)              ; UWORD       fOption
+     (pvParam sql-integer)              ; UDWORD      vParam
+     (stringlength sql-integer)))
 
 
-(defcfun ("SQLSetConnectAttr" SQLSetConnectAttr_string) retcode
-    (hdbc sql-handle)          ; HDBC        hdbc
-     (fOption :short)           ; UWORD       fOption
-     (pvParam string-ptr)             ; UDWORD      vParam
-     (stringlength :long)
-     )
-
-  
-
-  (defcfun "SQLSetPos" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (irow :short)              ; UWORD       irow
-     (fOption :short)           ; UWORD       fOption
-     (fLock :short)             ; UWORD       fLock
-     )
+(defsqlfun ("SQLSetConnectAttr" SQLSetConnectAttr_string)
+    ((hdbc sql-handle)                  ; HDBC        hdbc
+     (fOption sql-integer)              ; UWORD       fOption
+     (pvParam string-ptr)               ; UDWORD      vParam
+     (stringlength sql-integer)))
 
 
-  ; level 2
-  (defcfun "SQLExtendedFetch" retcode 
-    (hstmt sql-handle)         ; HSTMT       hstmt
-     (fFetchType :short)        ; UWORD       fFetchType
-     (irow :long)               ; SDWORD      irow
-     (*pcrow :pointer)              ; UDWORD FAR *pcrow
-     (*rgfRowStatus :pointer)       ; UWORD  FAR *rgfRowStatus
-     )
-
-  (defcfun "SQLDataSources" retcode 
-    (henv sql-handle)          ; HENV        henv
-     (fDirection :short)
-     (*szDSN string-ptr)        ; UCHAR  FAR *szDSN
-     (cbDSNMax :short)          ; SWORD       cbDSNMax
-     (*pcbDSN *sword)             ; SWORD      *pcbDSN
-     (*szDescription string-ptr) ; UCHAR     *szDescription
-     (cbDescriptionMax :short)  ; SWORD       cbDescriptionMax
-     (*pcbDescription *sword)     ; SWORD      *pcbDescription
-     )
-
-
-  (defcfun "SQLFreeEnv" retcode 
-    (henv sql-handle)          ; HSTMT       hstmt
-    )
-
-
-  (defcfun "SQLMoreResults" retcode 
-      (hstmt sql-handle))
+;; level 2
+(defsqlfun "SQLMoreResults"
+    ((hstmt sql-h-stmt)))
 
 
   ;;; foreign type definitions
 
-  (defcstruct sql-c-time ""
-    (hour   :short)
-    (minute :short)
-    (second :short))
-  
-  (defcstruct sql-c-date ""
-    (year  :short)
-    (month :short)
-    (day   :short)) 
-  
-  (defcstruct sql-c-timestamp ""
-    (year     :short)
-    (month    :short)
-    (day      :short)
-    (hour     :short)
-    (minute   :short)
-    (second   :short)
-    (fraction :long))
+(defcstruct sql-c-time ""
+            (hour   sql-u-small-int)
+            (minute sql-u-small-int)
+            (second sql-u-small-int))
+
+(defcstruct sql-c-date ""
+            (year  sql-small-int)
+            (month sql-u-small-int)
+            (day   sql-u-small-int))
+
+(defcstruct sql-c-timestamp ""
+            (year     sql-small-int)
+            (month    sql-u-small-int)
+            (day      sql-u-small-int)
+            (hour     sql-u-small-int)
+            (minute   sql-u-small-int)
+            (second   sql-u-small-int)
+            (fraction sql-u-integer))
 
 (defun %put-sql-c-date (adr %year %month %day)
   (setf (foreign-slot-value adr 'sql-c-date 'year) %year)
   (setf (foreign-slot-value adr 'sql-c-date 'month) %month)
   (setf (foreign-slot-value adr 'sql-c-date 'day) %day))
 
- 
-(defun %put-sql-c-timestamp (adr %year %month %day %hour %minute %second %fraction)
+
+(defun %put-sql-c-timestamp (adr %year %month %day %hour %minute %second
+                             %fraction)
   (setf (foreign-slot-value adr 'sql-c-timestamp 'second) %second)
   (setf (foreign-slot-value adr 'sql-c-timestamp  'minute) %minute)
   (setf (foreign-slot-value adr 'sql-c-timestamp 'hour) %hour)
   (setf (foreign-slot-value adr 'sql-c-timestamp 'day) %day)
   (setf (foreign-slot-value adr 'sql-c-timestamp  'month) %month)
   (setf (foreign-slot-value adr 'sql-c-timestamp 'year) %year)
-  (setf (foreign-slot-value adr 'sql-c-timestamp 'fraction) %fraction)
-  )    
+  (setf (foreign-slot-value adr 'sql-c-timestamp 'fraction) %fraction))
 
 (defun timestamp-to-universal-time (adr)
-  (with-foreign-slots 
+  (with-foreign-slots
       ((year month day hour minute second fraction) adr sql-c-timestamp)
     (values
      (encode-universal-time
@@ -378,19 +355,18 @@
       hour 
       day 
       month 
-      year )
+      year)
      fraction)))
-    
+
 
 (defun date-to-universal-time (adr)
-  (with-foreign-slots 
+  (with-foreign-slots
       ((year month day) adr sql-c-date)
     (encode-universal-time
-      0 0 0
-      day
-      month
-      year)))
+     0 0 0
+     day
+     month
+     year)))
 
-
-(defmacro %sql-len-data-at-exec (length) 
-  `(- $SQL_LEN_DATA_AT_EXEC_OFFSET ,length))
+(defun %sql-len-data-at-exec (length)
+  (- $SQL_LEN_DATA_AT_EXEC_OFFSET length))

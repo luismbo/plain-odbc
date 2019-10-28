@@ -7,31 +7,52 @@
 
 
 (defun run-sql-server-tests (con)
-  (dolist (sym '(ss-type-test 
-                 ss-test1 
-                 ss-test2 
-                 ss-test3 
-                 ss-test4 
-                 ss-test5 
-                 ss-test6   ss-test7 
-                 ss-test8 
-                 ss-test8a 
-                 ss-test9 
-                 ss-test10 
-                 ss-test11 
-                 ss-test12 
-                 ss-test13 
-                 ss-test14 
-                 ss-test15 
-                 ss-test16 
-                 ss-test17 
-                 ss-test18 
-                 ss-test19 
-                 ss-test20 
-                 ss-test21 
-                 ss-test22))
-    (pprint sym)
-    (funcall sym con)))
+  (flet ((doit () 
+           (dolist (sym '(ss-type-test 
+                          ss-test1 
+                          ss-test2 
+                          ss-test3 
+                          ss-test4 
+                          ss-test5 
+                          ss-test6   
+                          ss-test7 
+                          ss-test8 
+                          ss-test8a 
+                          ss-test9 
+                          ss-test10 
+                          ss-test11 
+                          ss-test12 
+                          ss-test13 
+                          ss-test14 
+                          ss-test15 
+                          ss-test16 
+                          ss-test17 
+                          ss-test18 
+                          ss-test19 
+                          ss-test20 
+                          ss-test21 
+                          ss-test22
+                          ss-test23
+                          ss-test24
+                          ss-test25
+                          ss-test26
+                          ss-test27
+                          ss-test28
+                          ss-test29
+                          ss-test30
+                          ss-test31
+                          ss-test32
+                          ))
+             (pprint sym)
+             (funcall sym con))))
+    (format t "with use-bind~%")
+    (setf (use-bind-column con) t)
+    (doit)
+    (format t "~%~%no use-bind~%")
+    (setf (use-bind-column con) nil)
+    (doit)
+    ))
+    
 
 (defparameter *sql-server-type_test-ddl* "
 CREATE TABLE [type_test] (
@@ -136,6 +157,13 @@ CREATE TABLE [type_test] (
     from sysobjects where name='~A'" proc))))
     (exec-command con (format nil "drop procedure ~A" proc))))
 
+(defun ss-drop-test-table (con table)
+  (unless (zerop (caar (exec-query con (format nil "select count(*) 
+    from sysobjects where name='~A'" table))))
+    (exec-command con (format nil "drop table ~A" table))))
+
+
+
 (defun ss-test1 (con)
   (ss-drop-test-proc con "test99")
   (exec-command con "create procedure test99 @a int,@b int out
@@ -166,7 +194,7 @@ CREATE TABLE [type_test] (
   (commit con))
 
 (defun ss-test3 (con)
-  (let ((*universal-time-to-date-dataype* 'write-to-string)
+  (let ((*universal-time-to-date-datatype* 'write-to-string)
         (*date-datatype-to-universal-time* 'parse-integer))
     (ss-drop-test-proc con "test99")
     (let ((a (caar (exec-query con "select getdate()"))))
@@ -204,7 +232,7 @@ CREATE TABLE [type_test] (
     (commit con)))
 
 (defun ss-test6 (con)
-  (let ((*universal-time-to-date-dataype* 'universal-time-list)
+  (let ((*universal-time-to-date-datatype* 'universal-time-list)
         (*date-datatype-to-universal-time* 'list-universal-time))
 
     (ss-drop-test-proc con "test99")
@@ -244,7 +272,7 @@ CREATE TABLE [type_test] (
                             "select convert(nvarchar(20),?),convert(varchar(20),?)"
                             '(:string :in) 
                             '(:unicode-string :in))
-    (let* ((strings '("hjgkhgkzt65646&%2" "nnvfdsfsfz6tztﬂ0#="))
+    (let* ((strings '("hjgkhgkzt65646&%2" "nnvfdsfsfz6tztB0#="))
            (res (exec-prepared-query stm (first strings) (second strings))))
       (assert (equal res (list strings))))))
 
@@ -442,7 +470,7 @@ CREATE TABLE [type_test] (
 
 
 (defun ss-test21 (con)
-   (let ((*universal-time-to-date-dataype* 'universal-time-list)
+   (let ((*universal-time-to-date-datatype* 'universal-time-list)
          (*date-datatype-to-universal-time* 'list-universal-time)
          (*date-type-predicate* 'date-lisp-p))
      (let ((res (exec-query con "select dateadd(d,1,?)" 
@@ -468,7 +496,164 @@ CREATE TABLE [type_test] (
                    (coerce (fourth res) 'list))))))
 
 
+(defun ss-test23 (con)
+  (ss-drop-test-proc con "test99")
+  (exec-command con "
+     create procedure test99 
+     @p1 integer,
+     @p2 varchar(200),
+    @p3 int out,
+    @p4  varchar(2000) out as 
+   begin
+      set @p3=3*@p1;
+      set @p4='a'+ @p2 + '#'+ @p2 +'x'
+      select @p3 as a,@p4 as b;
+      select @p4 as bb,@p3 as aa;
+   end")
+  (let* ((teststr "abcdefghijklmnopqrstuvwxyz")
+        (testint 12345678)
+        (p4 (format nil "a~A#~Ax" teststr teststr))
+        (p3 (* 3 testint)))
+   (multiple-value-bind (c resultsets params)
+       (exec-sql con "{call test99 (?,?,?,?)}" 
+                 testint teststr '(nil :integer :out) '(nil :string :out))
+     (assert (equal params (list p3 p4)))
+     (let* ((res1 (first resultsets))
+            (res2 (second resultsets))
+            (row1 (first (first res1)))
+            (row2 (first (first res2))))
 
-    
-      
-              
+       (assert (equal row1 (list p3 p4)))
+       (assert (equal row2 (list p4 p3)))
+       (assert (equal (second res1) '("a" "b")))
+       (assert (equal (second res2) '("bb" "aa")))))))
+
+
+(defun ss-test24 (con)
+  (dolist (x '(234 123 237))
+  (let ((res (exec-query con (format nil "select char(~A)as a" x))))
+    (assert (= x (char-code (char (first (first res)) 0)))))))
+
+(defun ss-test25 (con)
+  (dolist (x '(234 123 237))
+  (let ((res (exec-query con (format nil "select ascii('~A') as a" (code-char x)))))
+    (assert (= x (first (first res)))))))
+
+(defun ss-test26 (con)
+  (dolist (x '(234 123 237))
+    (let ((res (exec-query con "select ? as a" (string (code-char x)))))
+      (assert (= x (char-code (char (first (first res)) 0)))))))
+
+;; tests for 
+
+
+(defun ss-mk-metadatatest (con)
+  (ss-drop-test-table con "metadatatest")
+  (exec-command con "
+    CREATE TABLE metadatatest(
+	x int NOT NULL,
+        y varchar(10),
+        z datetime,
+       CONSTRAINT metadatatest_pk PRIMARY KEY CLUSTERED (x,y)) "))
+
+; for sql server:  
+;  catalog <-> database
+;  schema  <-> owner  (z.B. dbo)
+;   and "" <> nil/null
+
+(defun schema-loop (con fun)
+  (let ((schemainfo (first (exec-query con "SELECT SCHEMA_NAME(),DB_NAME()"))))
+    (dolist (schema (list nil (first schemainfo)))
+      (dolist (catalog (list nil (second schemainfo)))
+        (funcall fun catalog schema)))))
+  
+(defun ss-test27 (con)
+  (ss-mk-metadatatest con)
+  (schema-loop
+   con 
+   (lambda (catalog schema)
+     (multiple-value-bind
+         (res cols) 
+         (get-primary-keys con catalog schema "metadatatest")
+       (assert (= 2 (length res)))
+       (assert (equal cols '("TABLE_CAT" "TABLE_SCHEM" "TABLE_NAME" "COLUMN_NAME" "KEY_SEQ" "PK_NAME")))))))
+
+(defun ss-test28 (con) 
+  (ss-mk-metadatatest con)
+   (schema-loop
+    con 
+    (lambda (catalog schema)
+      (multiple-value-bind 
+          (res cols)
+          (get-columns con catalog schema "metadatatest" nil)
+        (assert (= 3 (length res)))
+        (assert (equal (subseq cols 0 18) 
+                       '("TABLE_CAT" "TABLE_SCHEM" "TABLE_NAME" "COLUMN_NAME" "DATA_TYPE" "TYPE_NAME" 
+                         "COLUMN_SIZE" "BUFFER_LENGTH" "DECIMAL_DIGITS" "NUM_PREC_RADIX" "NULLABLE" 
+                         "REMARKS" "COLUMN_DEF" "SQL_DATA_TYPE" "SQL_DATETIME_SUB" "CHAR_OCTET_LENGTH" 
+                         "ORDINAL_POSITION" "IS_NULLABLE")))))))
+
+
+
+(defun ss-test29 (con)
+  (ss-mk-metadatatest con)
+  (schema-loop
+   con 
+   (lambda (catalog schema)
+     (multiple-value-bind 
+         (res cols)
+         (get-tables con catalog schema "metadatatest" nil)
+       (assert (= 1 (length res)))
+       (assert (equal cols '("TABLE_CAT" "TABLE_SCHEM" "TABLE_NAME" "TABLE_TYPE" "REMARKS")))))))
+  
+(defun ss-test30 (con)
+  (ss-mk-metadatatest con)
+  (ss-drop-test-table con "metadatatest2")
+  (exec-command con "
+    CREATE TABLE metadatatest2(
+	a int NOT NULL,
+        b varchar(10),
+        c datetime,
+       CONSTRAINT metadatatest2_pk PRIMARY KEY CLUSTERED (a,b)) ")
+  (exec-command con "alter table metadatatest add constraint metadatatest_fk1 foreign key (x,y) references metadatatest2(a,b)")
+  (schema-loop
+   con 
+   (lambda (catalog schema)
+     (multiple-value-bind 
+         (res1 cols1)
+         (get-foreign-keys con nil nil "metadatatest2"
+                           nil nil nil)
+       (assert (= 2 (length res1)))
+       (assert (equal cols1  '("PKTABLE_CAT" "PKTABLE_SCHEM" "PKTABLE_NAME" "PKCOLUMN_NAME" "FKTABLE_CAT" "FKTABLE_SCHEM" "FKTABLE_NAME" "FKCOLUMN_NAME" "KEY_SEQ"
+                               "UPDATE_RULE" "DELETE_RULE" "FK_NAME" "PK_NAME" "DEFERRABILITY")))
+       (multiple-value-bind 
+           (res2 cols2)
+           (get-foreign-keys con nil nil nil
+                             nil nil "metadatatest")
+         (assert (= 2 (length res2))))))))
+
+
+(defun ss-test31 (con)
+  (ss-mk-metadatatest con)
+  (schema-loop
+   con 
+   (lambda (catalog schema)
+     (multiple-value-bind 
+         (res cols)
+         (get-tables con catalog schema "metadatatest" "TABLE")
+       (assert (= 1 (length res)))
+       (assert (equal cols '("TABLE_CAT" "TABLE_SCHEM" "TABLE_NAME" "TABLE_TYPE" "REMARKS")))))))
+
+(defun ss-test32 (con)
+  (ignore-errors (exec-command con "drop view metadatatest_vw"))
+  (exec-command con "create view metadatatest_vw as select 1 as a")
+  (schema-loop
+   con 
+   (lambda (catalog schema)
+     (dolist (type '("VIEW" nil))
+       (multiple-value-bind 
+           (res cols)
+           (get-tables con catalog schema "metadatatest_vw" type)
+         (assert (= 1 (length res)))
+         (assert (equal cols '("TABLE_CAT" "TABLE_SCHEM" "TABLE_NAME" "TABLE_TYPE" "REMARKS"))))))))
+

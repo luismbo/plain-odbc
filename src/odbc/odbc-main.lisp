@@ -27,8 +27,10 @@
    (dbms-name :reader dbms-name)
    (user-name :reader user-name)
    ;; info returned from SQLGetInfo
-   (info :initform (make-hash-table) :reader db-info))
-  #+cormanlisp (:metaclass cl::class-slot-class))
+   (info :initform (make-hash-table) :reader db-info)
+   (use-bind :initform t :accessor use-bind-column))
+  #+cormanlisp (:metaclass cl::class-slot-class)
+  )
 
 (defun get-odbc-info (con info-type)
   (with-slots (hdbc info) con
@@ -70,9 +72,12 @@
                ;; rav
                ;; for mysql/unoixodbc (get-odbc-info con $SQL_USER_NAME) core dumps
                ;; not known if this is mysql specific or unixodbc specific
-               (if (equalp dbms-name "MySQL")
-                 "unknown"
-                 (get-odbc-info con $SQL_USER_NAME))))
+             ;; rav, 20.12.2007 remove the check, it works with mysql 5.0 on windows
+               ;(if (equalp dbms-name "MySQL")
+               ;  "unknown"
+                 (get-odbc-info con $SQL_USER_NAME)
+               ;  )
+                 ))
              
        (when is-txn-capable
          (disable-autocommit (hdbc con)))
@@ -102,7 +107,6 @@
       (driver-connect connection-string)))
 
 
-;;; fixme, is this correct?
 (defmethod print-object ((connection odbc-connection) s)
   (format s "#<~A SERVER=~S DBMS=~S USER=~S>"
           (class-name (class-of connection))
@@ -129,6 +133,7 @@
     ;; anyway, a transaction must be explicitly commited
     (rollback con)
     (%disconnect (hdbc con))
+    (%free-connection (hdbc con))
     (SLOT-MAKUNBOUND con 'hdbc)
     (setf (slot-value con 'connected-p) nil)
     (setf *open-connections* (remove con *open-connections*))
@@ -164,7 +169,11 @@
    (hstmt :initform nil :initarg :hstmt :accessor hstmt) ; = cursor??
    (columns :initform nil)
    (column-count :initform nil :accessor column-count)
-   (parameters :initarg :parameters :accessor parameters)))
+   (parameters :initarg :parameters :accessor parameters)
+   (use-bind :initform t :initarg :use-bind)))
+
+(defun use-bind-p (q)
+  (slot-value q 'use-bind))
 
 (defun make-query (con)
   (let ((new-query (make-instance 'odbc-query
@@ -172,7 +181,8 @@
                                   :active-p nil
                                   ;; column-count should be nil
                                   ;;(clone-database database)
-                                  :active-p t)))
+                                  :active-p t
+                                  :use-bind (slot-value con 'use-bind))))
    (setf (hstmt new-query) (%new-statement-handle (hdbc con)))
    new-query))
 
@@ -187,7 +197,8 @@
                                   :active-p nil
                                   ;; column-count should be nil
                                   ;;(clone-database database)
-                                  :active-p t)))
+                                  :active-p t
+                                  :use-bind (slot-value con 'use-bind))))
    (setf (hstmt new-query) (%new-statement-handle (hdbc con)))
    new-query))
 
@@ -201,20 +212,19 @@
       (push (slot-value (aref columns i) 'column-name) res))
     (nreverse res)))
 
-(defun bind-columns (query)
+(defun bind-columns (query columncount)
   (with-slots (hstmt 
                columns
                column-count) 
               query 
-    (let ((cc (result-columns-count hstmt)))
-      (when (zerop cc)
+      (when (zerop columncount)
         (error "can not bind columns, there is no result set"))
-      (setf column-count cc)
+      (setf column-count columncount)
       (setf columns (make-array column-count))
       (dotimes (pos column-count)
         ;; the columns are 0 based, at least here
-        (let ((col (create-column hstmt pos)))
-          (setf (aref columns pos) col))))))
+        (let ((col (create-column query pos (use-bind-p query))))
+          (setf (aref columns pos) col)))))
 
 (defun unbind-columns (query)
   (let ((columns (slot-value query 'columns))
@@ -306,7 +316,7 @@
          (values obj :date :in)
          (error "not able to deduce parameter specification for ~A" obj)))))
 
-(defun exec-sql (connection sql parameter-list)
+(defun exec-sql-statement (connection sql parameter-list)
   (let ((query (make-query connection)))
     (unwind-protect
       (progn
@@ -341,22 +351,31 @@
         (let ((res-list nil)
               (row-count (result-rows-count (hstmt query))))
           (loop
-            (when (zerop (result-columns-count (hstmt query))) (return))
-            (bind-columns query)
+            (let ((column-count (result-columns-count (hstmt query))))
+            (when (zerop column-count) (return))
+            (bind-columns query column-count)
             (let ((res (fetch-query-results query ))
                   (names (coerce (column-names query) 'list)))
               (push (list res names) res-list)
               (unbind-columns query)
               (unless (%sql-more-results (hstmt query))
-                (return))))
+                (return)))))
           (let ((return-parameters (get-parameters query)))
             (values row-count (nreverse res-list) return-parameters))))
         (free-query query)
         )))
 
+(defun exec-sql* (connection sql parameter-list)
+  (exec-sql-statement connection sql parameter-list))
+
+(defun exec-sql (connection sql &rest parameter-list)
+  (exec-sql* connection sql parameter-list))
+
+
+
 (defun exec-query* (connection sql parameter-list)
   (multiple-value-bind (rows result-sets out-params)
-      (exec-sql connection sql parameter-list)
+      (exec-sql-statement connection sql parameter-list)
     (declare (ignore rows) (ignore out-params))
     (let ((res nil))
       (dolist (result-set result-sets)
@@ -369,7 +388,7 @@
 
 (defun exec-update* (connection sql parameter-list)
   (multiple-value-bind (rows result-sets out-params)
-      (exec-sql connection sql parameter-list)
+      (exec-sql-statement connection sql parameter-list)
     (declare (ignore result-sets out-params))
     rows))
 
@@ -378,13 +397,67 @@
 
 (defun exec-command* (connection sql parameter-list)
   (multiple-value-bind (rows result-sets out-params)
-      (exec-sql connection sql parameter-list)
+      (exec-sql-statement connection sql parameter-list)
     (declare (ignore rows result-sets))
     (values-list out-params)))
 
 (defun exec-command (connection sql &rest parameter-list)
   (exec-command* connection sql parameter-list))
- 
+
+(defun call-metadata-func (connection fun) 
+  (let ((query (make-query connection)))
+    (unwind-protect 
+        (progn
+          (funcall fun (hstmt query))
+          (let ((column-count (result-columns-count (hstmt query))))
+            (when (zerop column-count) 
+              (return-from call-metadata-func nil))
+            (bind-columns query column-count)
+            (values (fetch-query-results query) (coerce (column-names query) 'list))))
+      (free-query query))))
+
+(defun get-primary-keys (connection catalog-name schema-name table-name)
+  (check-type catalog-name (or null string))
+  (check-type schema-name (or null string))
+  (check-type table-name (or null string))
+  (call-metadata-func connection
+   (lambda (hstmt)
+     (%sql-primary-keys hstmt catalog-name schema-name table-name))))
+
+(defun get-tables (connection catalog-name schema-name table-name table-type)
+  (check-type catalog-name (or null string))
+  (check-type schema-name (or null string))
+  (check-type table-name (or null string))
+  (check-type table-type (or null string))
+  (call-metadata-func connection
+   (lambda (hstmt)
+     (%sql-tables hstmt catalog-name schema-name table-name table-type))))
+
+(defun get-columns (connection catalog-name schema-name table-name column-name)
+  (check-type catalog-name (or null string))
+  (check-type schema-name (or null string))
+  (check-type table-name (or null string))
+  (check-type column-name (or null string))
+  (call-metadata-func connection
+   (lambda (hstmt)
+     (%sql-columns hstmt catalog-name schema-name table-name column-name))))
+
+(defun get-foreign-keys (connection 
+                         catalog-name1 schema-name1 table-name1
+                         catalog-name2 schema-name2 table-name2)
+  (check-type catalog-name1 (or null string))
+  (check-type schema-name1 (or null string))
+  (check-type table-name1 (or null string))
+  (check-type catalog-name2 (or null string))
+  (check-type schema-name2 (or null string))
+  (check-type table-name2 (or null string))
+  (call-metadata-func connection
+   (lambda (hstmt)
+     (%sql-foreign-keys hstmt 
+                        catalog-name1 schema-name1 table-name1
+                        catalog-name2 schema-name2 table-name2))))
+
+
 
 (defmethod prepare-statement ((connection odbc-connection) sql &rest parameter-list)
   (with-slots (hdbc) connection
@@ -454,14 +527,17 @@
               (let ((param (aref (slot-value query 'parameters) pos)))
                 (send-parameter-data param hstmt)))))))))
 
-;; this functions works only, since we store at 
-;; value-ptr the position of the parameter
-(defun sql-param-data-position (hstmt)  
-  (with-temporary-allocations 
+;; this functions works only, since we store at value-ptr the position
+;; of the parameter
+(defun sql-param-data-position (hstmt)
+  (with-temporary-allocations
       ((ptr (cffi:foreign-alloc :pointer)))
-    (let ((res (with-error-handling (:hstmt hstmt) (%sql-param-data hstmt ptr))))
-      (values res (if (= res $SQL_NEED_DATA) 
-                    (cffi:mem-ref (cffi:mem-ref ptr :pointer) :long  ))))))
+    (let ((res (with-error-handling (:hstmt hstmt)
+                   (%sql-param-data hstmt ptr))))
+      (values res (if (= res $SQL_NEED_DATA)
+                      (cffi:mem-ref (cffi:mem-ref ptr :pointer) :long))))))
+
+
 
 (defmethod exec-prepared-query ((query prepared-statement) &rest parameters)
   (let ((hstmt (hstmt query)))
@@ -479,7 +555,7 @@
           (if (column-count query)
             (unless (= (column-count query) no-of-columns)
               (error "the number of columns has changed"))
-            (bind-columns query)))
+            (bind-columns query no-of-columns)))
         (values (fetch-query-results query)
                 (coerce (column-names query) 'list)))
     (%free-statement hstmt :close))))

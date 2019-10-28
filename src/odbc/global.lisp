@@ -17,7 +17,7 @@
     )
   (export '*odbc-library-file*))
 
-(defvar *universal-time-to-date-dataype* 'identity)
+(defvar *universal-time-to-date-datatype* 'identity)
 (defvar *date-datatype-to-universal-time* 'identity)
 (defvar *date-type-predicate* (lambda (x) (declare (ignore x)) nil))
 
@@ -30,4 +30,6 @@
 (defvar *default-string-parameter-size* 8001)
 
 (defvar  *DEFAULT-BINARY-PARAMETER-SIZE* 8001)
+
+(defvar *client-encoding* :utf-8)
 

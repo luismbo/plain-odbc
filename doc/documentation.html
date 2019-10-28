@@ -1,37 +1,46 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
   <!-- -*- Mode: html -*- -->
+  <STYLE TYPE="text/css">
+    BODY {width: 80ex }
+   </STYLE>
   <head>
     <title>Plain-odbc Documentation</title>
   </head>
-
   <body>
     <h1>plain-odbc documentation</h1>
     <h2> Preface</h2>
     <p>
       This is the version of plain-odbc which I am using right now. 
       The API could stand some improvements, currently it is rather 
-      simple. Hopefully it suffices for many uses. I thought I make 
-      the current version available before I make my mind up about 
-      another API. 
+      simple. But I think it is good enough for many uses. 
+      A higher level API is not a goal.
     </p>
     <p>
       For Information about ODBC-API, I recommend the
-      <a href="http://msdn.microsoft.com/library/default.asp?url=/library/en-us/odbc/htm/dasdkodbcoverview.asp">
+      <a href="http://msdn2.microsoft.com/en-us/library/ms710252(VS.85).aspx">
         ODBC documentation from Microsoft</a>.
     </p>
-    <h2>Platforms, not up to date</h2>
+ <h3>Platforms</h3>
     <p>
-      Plain-odbc uses CFFI to interface to the odbc libaries. I have tested it on 
-      Windows LispWorks Personal Edition (4.4) and 
-      CLISP 2.38. I am too lazy to download the new version of
-      an "Allegro CL Trial Edition", but I am confident that this should also work.
-      On Windows ODBC connections to Oracle and SQL-Server work. 
-      On Linux plain-odbc has been tested with CLISP and MySQL.
+      Plain-odbc uses CFFI to interface to the ODBC libaries.
+      The development platform ist clisp on Windows XP.
+      On this system accessing Microsoft SQL-Server, Oracle 10g and MySQL 5.0 works.
+      I do not expect big problems with other databases which have an ODBC driver. 
+      If there are problems they can also originate from the implementation of the
+      ODBC driver, e.g. MyODBC does not support out parameters. 
+      At one time plain-odbc worked on Windows with LispWorks Personal Edition (4.4) 
+      and Allegro.
+      On Linux it worked with CMUCL and MySQL. Since the interface to the ODBC library 
+      is done with
+      CFFI, plain-odbc should still work on these platforms/systems.
+      </p>
+    <p>
+      David Owen made the necessary changes to the code to make it run on 
+      64-bit Linux CMUCL and MySQL. 
     </p>
-    
     <h2> Using plain-odbc, Examples </h2>
-    You must load plain-odbc into lisp. plain-odbc is an asdf module, 
+    You must load plain-odbc into lisp. Plain-odbc is an asdf module, 
     so you need asdf. Make sure that asdf is able to find CFFI and plain-odbc.
     <pre>(asdf:oos 'asdf:load-op :plain-odbc)
     </pre>
@@ -74,7 +83,7 @@
     Note that the column x is retrieved as double, this is a problem with Oracle. 
     Oracle does not really have integer columns, integer is just a short hand 
     for <tt>number(37,0)</tt>, and in a query this is returned as decimal. 
-    And plain-odbc converts decimals to doubles.
+    And plain-odbc converts decimals to doubles. 
     <pre>
 [9]> (exec-update *con* "update test1 set y=? where x=?" "text2" 1)
  
@@ -158,7 +167,7 @@ NIL
     SQL_C_TYPE_TIMESTAMP. 
     The conversion to an explicit date datatype is done by the 
     values of the variables 
-    <tt>*universal-time-to-date-dataype*</tt>, 
+    <tt>*universal-time-to-date-datatype*</tt>,
     <tt>*date-datatype-to-universal-time*</tt>. 
     The default values of these variables is the function <tt>identity</tt>.
     The value of the variable <tt>*date-type-predicate*</tt> is used to 
@@ -198,7 +207,7 @@ UNIVERSAL-TIME-LIST
   (apply 'encode-universal-time (reverse list)))
 
 LIST-UNIVERSAL-TIME
-[67]> (let ((*universal-time-to-date-dataype* 'universal-time-list)
+[67]> (let ((*universal-time-to-date-datatype* 'universal-time-list)
       (*date-datatype-to-universal-time* 'list-universal-time))
   (exec-query *con* "
      select to_date('12.3.2005 13:56:34','dd.mm.yyyy hh24:mi:ss') as date_,
@@ -210,7 +219,7 @@ LIST-UNIVERSAL-TIME
     </pre>
     <h2>Database NULL</h2>
     The database NULL value is mapped to <tt>NIL</tt>.
-    <h2> Parameters </h2>
+    <h2>Parameters</h2>
     <p>
       Plain-odbc supports the prepared statements of ODBC. In order to create 
       a prepared statement, the SQL text and the formal parameters must be 
@@ -222,6 +231,27 @@ LIST-UNIVERSAL-TIME
       combined in a list or the paramter specification is derived from the
       actual parameter.
     </p>
+    <p><b>Note: MySql does not support out and in/out parameters. There are no
+      return parameters. A citation from the documentation of MySql:</b>
+</p>
+      <p><em>
+For programs written in a language that provides a MySQL interface, there is no 
+native method for directly retrieving the results of OUT or INOUT parameters 
+from CALL statements. To get the parameter values, pass user-defined variables
+to the procedure in the CALL statement and then execute a SELECT statement
+to produce a result set containing the variable values.
+The following example illustrates the technique (without error checking) for 
+a stored procedure p1 that has two OUT parameters. 
+</em><tt><br>
+mysql_query(mysql, "CALL p1(@param1, @param2)");<br>
+mysql_query(mysql, "SELECT @param1, @param2");<br>
+result = mysql_store_result(mysql);<br>
+row = mysql_fetch_row(result);<br>
+mysql_free_result(result);<br>
+</tt>
+
+      </p>
+
     <p>
       The function  <tt>prepare-statement</tt> is called with the parameters
     <ul>
@@ -235,8 +265,8 @@ LIST-UNIVERSAL-TIME
     additional parameters for this parameter type. 
     Currently the only parameter is the maximal length parameter for 
     the string and binary (= Oracle's raw) datatypes. Instead of a list for 
-    a parameter description only the name of the parameter type can be given. This is 
-    equivalent to a list with two elements: the symbol and the direction <tt>:in</tt>.
+    a parameter description only the name of the parameter type can be given. 
+    This is equivalent to a list with two elements: the symbol and the direction <tt>:in</tt>.
     The following parameter types ares supported:
   </p>
     <table border=1>
@@ -323,7 +353,7 @@ LIST-UNIVERSAL-TIME
     and the cdr is a parameter description, or it is for example 
     <tt>("this is a string" :string :in 100)</tt> or 
     <tt>(#(1 2 3 4) :binary :in 20)</tt>. Otherwise it is assumed that this
-    is the actual parameter and a statement specification is computed based on
+    is the actual parameter and a parameter specification is computed based on
     this value. 
     <ul>
       <li><tt>NIL</tt> is passed as parameter :string.
@@ -336,9 +366,20 @@ LIST-UNIVERSAL-TIME
       <li>If the execution of the value of <tt>*date-type-predicate*</tt> with
         the value returns true then the value is passed as :date. Of course 
         <tt>*date-datatype-to-universal-time*</tt> must be able to convert 
-        the value universal time.
+        the value to universal time.
     </ul>
 
+    <h3>Encoding</h3>
+    <p>
+      The library can deal with UTF-8 fine, which is the default
+      locale on most of today's systems. If your system does not use
+      UTF-8, then you might need to set *client-encoding* to an
+      appropriate locale (like :iso-8859-1) instead of :utf-8. In case
+      of Oracle databases, you might also consider setting the
+      appropriate NLS_LANG and/or NLS_CHARACTER_SET settings so that
+      the driver does the correct conversion for your system
+      configuration.
+    </p>
 
 <h2>Functions / Methods</h2>
     Currently most functions are implemented as methods, but you should not 
@@ -386,34 +427,62 @@ LIST-UNIVERSAL-TIME
       is the name of the .mdb file. 
     <p>
       <br><b>[Function]</b><br>
-      <tt>connect-sql-server <i>server database</i> &optional <i>user password</i></tt><br>
-      Connect to sql server named <i>server</i>, the initial database is <i>database</i>. 
-      If <i>user</i> and <i>password</i> are supplied the connection is made with sql server 
-      authentication, if the parameters are not supplied then the connection is made with
-      integrated security. The name of the template odbc datasource for this function is 
-      <tt>default-sql-server-dsn</tt>.
-    </p>
-    <p>
+        <tt>connect-sql-server <i>server database</i> &optional <i>user password</i></tt><br>
+          Connect to sql server named <i>server</i>, the initial database is <i>database</i>. 
+          If <i>user</i> and <i>password</i> are supplied the connection is made with sql server 
+          authentication, if the parameters are not supplied then the connection is made with
+          integrated security. The name of the template odbc datasource for this function is 
+          <tt>default-sql-server-dsn</tt>.
+      </p>
+      <p>
       <br><b>[Function]</b><br>
       <tt>connect-oracle <i>server user password</i></tt><br>
       Connect to oracle database <i>server</i>, connecting as <i>user</i> with 
       password <i>password</i>. The name of the template odbc datasource for this function is 
       <tt>default-oracle-dsn</tt>.
     </p>
-    <p>
-      <br><b>[Function]</b><br>
-      <tt>connect-access <i>filename</i></tt><br>
+      <p>
+        <br><b>[Function]</b><br>
+            <tt>connect-access <i>filename</i></tt><br>
       Connect to the access database (a .mdb file) with name filename.
       The name of the template odbc datasource for this function is 
       <tt>default-access-dsn</tt>.
     </p>
-      
+      <p>
+        <br><b>[Function]</b><br>
+            <tt>connect-mysql <i>server database user password</i></tt><br>
+              Connect to the MySql server on <i>server</i> connecting as user 
+              <i>user</i> with password <i>password</i>. The default database is
+              <i>database</i>. If database is <tt>NIL</tt> no database is chosen. 
+              The name of the template odbc datasource for this function is
+              <tt>default-mysql-dsn</tt>.
+      </p>
+      <p>
+        <br><b>[Function]</b><br>
+            <tt>connect-sqlite <i>databasefile</i></tt><br>
+              Open the Sqlite database with filename <i>databasefile</i>.
+              <tt>default-sqlite-dsn</tt>.
+              The <i>databasefile</i> must already exist.
+              The name of the template odbc datasource for this function is 
+              <tt>default-sqlite-dsn</tt>.
+      </p>
+
     <h3>Working with Connections</h3>
-    <p>
+      <p>
+        <br/><b>[Function]</b><br/>
+            <tt>use-bind-column <i>connection</i></tt></br>
+          <tt>setf (use-bind-column <i>connection</i>) <i>boolean</i></tt><br/>
+            With ODBC it is possible to retrieve data from a query in two ways: bind a column directly
+            or use the function SQLGetData. This property determines which method is used.
+            The default value is <tt>t</tt>. It can be changed anytime, this affects only queries 
+            that will be executed in the future. Usually the default value is fine. 
+            But SQLite (or its ODBC driver) has some quirks. For more information see the 
+            ODBC documentation on SQLGetData.
+      </p>
       <br><b>[Function]</b><br>
       <tt>exec-query <i>connection sqlstring &amp;rest parameters</i></tt><br>
-      Execute a query, a command which returns a resultset 
-      (or several resultsets).
+            Execute a query, a command which returns a resultset 
+            (or several resultsets).
       <i> connection</i> is the odbc connection on which the command is 
       executed.
       <i>sqlstring</i> is the command text. 
@@ -427,7 +496,7 @@ LIST-UNIVERSAL-TIME
     <p><b>Note:</b>
      If a column is a LOB (BLOB or CLOB) then the data is retrieved
       with the ODBC function SQLGetData. This has the consequence that 
-      thr following columns must also be retrieved with SQLGetData, 
+      the following columns must also be retrieved with SQLGetData, 
       otherwise an error is raised by the driver. 
       Retrieving the following columns via 
       SQLGetData is not done automatically. Therefore if a LOB is selected
@@ -439,6 +508,11 @@ LIST-UNIVERSAL-TIME
       you should convert them to a string in the select statement. 
       But be carefull with  the conversion format (1.23 vs. 1,23).
     </p>
+      <p>
+     <br><b>[Function]</b><br>
+      <tt>exec-query*<i>connection sqlstring parameters</i></tt><br>
+      The same as <tt>exec-query</tt>, but the ODBC parameters are passed as a list.
+      </p>
     <p>
       <br><b>[Function]</b><br>
       <tt>exec-update <i>connection sqlstring &amp;rest parameters</i></tt><br>
@@ -446,21 +520,52 @@ LIST-UNIVERSAL-TIME
       and returns the number of affected records. <i>parameters</i> is a 
       list of parameter descriptions. 
     </p>
+     <p>
+      <br><b>[Function]</b><br>
+      <tt>exec-update* <i>connection sqlstring parameters</i></tt><br>
+      The same as <tt>exec-update</tt>, but the ODBC parameters are passed as a list.
+    </p>
     <p>
       <br><b>[Function]</b><br>
       <tt>exec-command <i>connection sqlstring &amp;rest parameters</i></tt></br>
       Execute an command on <i>connection</i> with sql <i>sqlstring</i>.
       <i>parameters</i> is a list of parameter descriptions. 
       Returns the list of out and in-out parameters.
-    </p>
+      </p>
+      <p>
+      <br><b>[Function]</b><br>
+      <tt>exec-command* <i>connection sqlstring parameters</i></tt><br>
+      The same as <tt>exec-command</tt>, but the ODBC parameters are passed as a list.
+      </p>
+
     <p>
       <br><b>NOTE</b><br>
       The main difference <tt>exec-command</tt>, <tt>exec-update</tt> 
       and <tt>exec-query</tt> is what is returned by these functions.
       One can execute a select statement with <tt>exec-update</tt> and 
       <tt>exec-command</tt>. But the command for <tt>exec-query</tt> 
-      muts return a resultset.
+      must return a resultset. The following functions offers the functionality
+      of all three functions:
     </p>
+     <br><b>[Function]</b><br>
+      <tt>exec-sql <i>connection sqlstring &amp;rest parameters</i></tt></br>
+      Execute an sql statement (select, dml or stored procedure call) on <i>connection</i> 
+      with sql <i>sqlstring</i>. <i>parameters</i> is a list of parameter descriptions. 
+        This function returns three values 
+        <ul>
+          <li> the number of affected records, i.e. what is normally returend by 
+            <tt>exec-update</tt>.</li>
+            <li> the list of the resultsets, each resultset is a list of two elements: 
+            the list of rows and a list of the column names.</li>
+          <li>the list of returned parameters</li>         
+        </ul>
+      </p>
+    <p>
+      <br><b>[Function]</b><br>
+          <tt>exec-sql* <i>connection sqlstring parameters</i></tt><br>
+            The same as <tt>exec-sql</tt>, but the ODBC parameters are passed as a list.
+    </p>
+    
     <P>
       <br><b>[Function]</b><br>
       <tt>commit <i>connection</i></tt><br>
@@ -495,14 +600,15 @@ LIST-UNIVERSAL-TIME
       list of records in the resultset and as second value the names of the columns.
       The meta data of the result set is internally cached. If the meta data of the 
       result set changes with the invocations yo must use a new prepared statement.
-      This should not happen often, but it is possible.
+      This should not happen often, but it is possible. 
+      <b>Currently only the first resultset is returned!</b>
     </p>
     <p>
       <br><b>[Function]</b><br>
-      <tt>exec-prepared-update <i>query &amp;rest parameters</i></tt><br>
-      Executes an update with the previoulsy created prepared statement 
-      <i>query</i> using the parameters in <i>parameters</i>. 
-      The return value is the number of affected records.
+          <tt>exec-prepared-update <i>query &amp;rest parameters</i></tt><br>
+            Executes an update with the previoulsy created prepared statement 
+            <i>query</i> using the parameters in <i>parameters</i>. 
+            The return value is the number of affected records.
     </p>
     <p>
       <br><b>[Function]</b><br>
@@ -512,6 +618,44 @@ LIST-UNIVERSAL-TIME
       in the  <i>parameters</i>. The return value is the list values for
       the out and in/out parameters.
     </p>
+
+    <h3>Metadata</h3>
+    The following functions map directly to the ODBC-API metadata functions.
+    These are currently only tested for SQL-Server. For most databases it should also be
+    possible to retrieve the metadata from the data dictionary. Of course this not
+    portable. If the values for the parameters catalog and schema are empty then
+    they default to the current schema and catalog. 
+    On SQL-Server this is the database and the user (most times <tt>dbo</tt>).
+    It seems that on Oracle the first <i>catalog</i> argument has to be <tt>nil</tt>.
+    Of course this depends on the ODBC Driver.
+    All functions return a resultset like the function <tt>exec-query</tt>.
+    The first value is a list of a records, where each record is a list of lisp values.
+    The second value is the list of column names.
+    Consult the ODBC documentation for the columns of the resultset of each function.
+    <p>
+      <br><b>[Function]</b><br>
+          <tt> get-primary-keys<i>(con catalog schema table)</i></tt></br>
+      This is a wrapper for <tt>SQLPrimaryKeys</tt>. 
+    </p>
+
+    <p>
+      <br><b>[Function]</b><br>
+          <tt> get-tables<i>(con catalog schema table table-type)</i></tt></br>
+       This is a wrapper for <tt>SQLTables</tt>. 
+    </p>
+
+    <p>
+      <br><b>[Function]</b><br>
+          <tt> get-columns<i>(con catalog schema table column)</i></tt></br>
+         This is a wrapper for <tt>SQLColumns</tt>.
+    </p>
+    
+    <p>
+      <br><b>[Function]</b><br>
+          <tt> get-foreign-keys<i>(con catalog1 schema1 table1 catalog2 schema2 table2)</i></tt></br> 
+         This is a wrapper for <tt>SQLForeignKeys</tt>.
+    </p>
+
 
     <h3>Utilities</h3>
     <br><b>[Macro]</b><br>

@@ -16,8 +16,8 @@ This file contains also some utility procedures needed by the other files.
 
 
 The tests are started with the function run-mysql-tests,run-oracle-tests
-run-sql-server-tests. These function take one parameter, an
-odbc connection to thecorresponding database.
+and run-sql-server-tests. These function take one parameter, an
+odbc connection to the corresponding database.
 
 [44]> (setf *con* (connect-oracle "ltrav1" "scott" "tiger"))
 
@@ -25,5 +25,6 @@ odbc connection to thecorresponding database.
 [45]>  (test-plain-odbc:run-oracle-tests *con*)
 
 NIL
+
 
 

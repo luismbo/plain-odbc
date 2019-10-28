@@ -17,7 +17,7 @@
 ;;#if (ODBCVER >= #x0200)
 (defconstant $SQL_SPEC_MAJOR 2)		;; Major version of specification 
 (defconstant $SQL_SPEC_MINOR 10) 	;; Minor version of specification 
-(defconstant $SQL_SPEC_STRING 	"02.10") ;; String constant for version	  
+(alexandria:define-constant $SQL_SPEC_STRING "02.10" :test #'string=) ;; String constant for version
 ;;;; #endif	;; ODBCVER >= #x0200
 (defconstant $SQL_SQLSTATE_SIZE 5)		;; size of SQLSTATE 			  
 (defconstant $SQL_MAX_MESSAGE_LENGTH 512)	;; message buffer size			  
